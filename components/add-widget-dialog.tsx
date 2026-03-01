@@ -11,13 +11,18 @@ import {
 } from "@/components/ui/dialog"
 
 const WIDGET_TYPES = [
+  { type: "app-links", name: "App Links", description: "Quick links to your apps" },
+  { type: "search", name: "Search", description: "Search across all your apps" },
   { type: "clock", name: "Clock", description: "Display the current time and date" },
   { type: "weather", name: "Weather", description: "Show local weather conditions" },
-  { type: "app-links", name: "App Links", description: "Quick links to your apps" },
   { type: "system-stats", name: "System Stats", description: "Monitor system resources" },
   { type: "notes", name: "Notes", description: "Jot down quick notes" },
   { type: "rss-feed", name: "RSS Feed", description: "Follow your favorite feeds" },
 ]
+
+const WIDGET_DEFAULT_SIZES: Record<string, { w: number; h: number }> = {
+  search: { w: 4, h: 2 },
+}
 
 interface AddWidgetDialogProps {
   boardId: string
@@ -31,11 +36,12 @@ export function AddWidgetDialog({ boardId, open, onOpenChange }: AddWidgetDialog
 
   async function handleAddWidget(type: string) {
     setLoading(true)
+    const { w, h } = WIDGET_DEFAULT_SIZES[type] ?? { w: 3, h: 2 }
     try {
       const response = await fetch("/api/widgets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ boardId, type, x: 0, y: Infinity, w: 3, h: 2 }),
+        body: JSON.stringify({ boardId, type, x: 0, y: Infinity, w, h }),
       })
 
       if (!response.ok) {
