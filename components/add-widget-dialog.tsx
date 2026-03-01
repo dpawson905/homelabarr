@@ -17,11 +17,17 @@ const WIDGET_TYPES = [
   { type: "weather", name: "Weather", description: "Show local weather conditions" },
   { type: "system-stats", name: "System Stats", description: "Monitor system resources" },
   { type: "notes", name: "Notes", description: "Jot down quick notes" },
+  { type: "calendar", name: "Calendar", description: "Track upcoming events and deadlines" },
   { type: "rss-feed", name: "RSS Feed", description: "Follow your favorite feeds" },
 ]
 
 const WIDGET_DEFAULT_SIZES: Record<string, { w: number; h: number }> = {
   search: { w: 4, h: 2 },
+  clock: { w: 2, h: 2 },
+  notes: { w: 3, h: 3 },
+  weather: { w: 3, h: 3 },
+  calendar: { w: 3, h: 4 },
+  "rss-feed": { w: 4, h: 4 },
 }
 
 interface AddWidgetDialogProps {
@@ -30,7 +36,7 @@ interface AddWidgetDialogProps {
   onOpenChange: (open: boolean) => void
 }
 
-export function AddWidgetDialog({ boardId, open, onOpenChange }: AddWidgetDialogProps) {
+export function AddWidgetDialog({ boardId, open, onOpenChange }: AddWidgetDialogProps): React.ReactElement {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
 

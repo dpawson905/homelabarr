@@ -78,7 +78,9 @@ export const settings = sqliteTable("settings", {
 // ─── Sessions ───────────────────────────────────────────────────────────────
 
 export const sessions = sqliteTable("sessions", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
   token: text("token").notNull().unique(),
   expiresAt: text("expires_at").notNull(),
   createdAt: text("created_at").notNull().$defaultFn(now),
@@ -87,7 +89,9 @@ export const sessions = sqliteTable("sessions", {
 // ─── Secrets ────────────────────────────────────────────────────────────────
 
 export const secrets = sqliteTable("secrets", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
   name: text("name").notNull().unique(),
   encryptedValue: text("encrypted_value").notNull(),
   iv: text("iv").notNull(),

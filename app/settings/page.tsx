@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { HugeiconsIcon } from "@hugeicons/react"
@@ -150,17 +150,14 @@ function PasswordChangeForm() {
 
 // ─── Secret Dialog (Add / Edit) ─────────────────────────────────────────────
 
-function SecretDialog({
-  open,
-  onOpenChange,
-  editingId,
-  onSaved,
-}: {
+type SecretDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   editingId: string | null
   onSaved: () => void
-}) {
+}
+
+function SecretDialog({ open, onOpenChange, editingId, onSaved }: SecretDialogProps) {
   const [name, setName] = useState("")
   const [value, setValue] = useState("")
   const [description, setDescription] = useState("")
@@ -170,10 +167,8 @@ function SecretDialog({
 
   const isEditing = !!editingId
 
-  // Fetch secret details when editing
   useEffect(() => {
     if (!open) {
-      // Reset form when dialog closes
       setName("")
       setValue("")
       setDescription("")
@@ -202,7 +197,6 @@ function SecretDialog({
     try {
       const url = isEditing ? `/api/secrets/${editingId}` : "/api/secrets"
       const method = isEditing ? "PUT" : "POST"
-
       const body: Record<string, string> = { name, value }
       if (description) body.description = description
 
@@ -276,9 +270,7 @@ function SecretDialog({
                   onClick={() => setShowValue(!showValue)}
                 >
                   <HugeiconsIcon icon={EyeIcon} strokeWidth={2} />
-                  <span className="sr-only">
-                    {showValue ? "Hide" : "Show"} value
-                  </span>
+                  <span className="sr-only">{showValue ? "Hide" : "Show"} value</span>
                 </Button>
               </div>
             </div>
@@ -293,11 +285,7 @@ function SecretDialog({
               />
             </div>
             <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-              >
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
               <Button type="submit" disabled={loading}>
@@ -313,17 +301,14 @@ function SecretDialog({
 
 // ─── Delete Confirmation ────────────────────────────────────────────────────
 
-function DeleteSecretDialog({
-  secretName,
-  open,
-  onOpenChange,
-  onConfirm,
-}: {
+type DeleteSecretDialogProps = {
   secretName: string
   open: boolean
   onOpenChange: (open: boolean) => void
   onConfirm: () => void
-}) {
+}
+
+function DeleteSecretDialog({ secretName, open, onOpenChange, onConfirm }: DeleteSecretDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
@@ -347,16 +332,22 @@ function DeleteSecretDialog({
 
 // ─── Secrets Manager Section ────────────────────────────────────────────────
 
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  })
+}
+
 function SecretsManager() {
   const [secrets, setSecrets] = useState<SecretListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [deleteConfirm, setDeleteConfirm] = useState<SecretListItem | null>(
-    null
-  )
+  const [deleteConfirm, setDeleteConfirm] = useState<SecretListItem | null>(null)
 
-  const fetchSecrets = useCallback(async () => {
+  async function fetchSecrets() {
     try {
       const res = await fetch("/api/secrets")
       const data = await res.json()
@@ -366,11 +357,11 @@ function SecretsManager() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }
 
   useEffect(() => {
     fetchSecrets()
-  }, [fetchSecrets])
+  }, [])
 
   function handleEdit(secret: SecretListItem) {
     setEditingId(secret.id)
@@ -404,14 +395,6 @@ function SecretsManager() {
     }
   }
 
-  function formatDate(iso: string) {
-    return new Date(iso).toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    })
-  }
-
   return (
     <>
       <div className="flex items-center justify-between">
@@ -433,9 +416,7 @@ function SecretsManager() {
         </div>
       ) : secrets.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-center">
-          <p className="text-muted-foreground text-sm">
-            No secrets stored yet
-          </p>
+          <p className="text-muted-foreground text-sm">No secrets stored yet</p>
           <p className="text-muted-foreground/60 text-xs mt-1">
             Add your first secret to get started with integrations.
           </p>
@@ -453,9 +434,7 @@ function SecretsManager() {
           <TableBody>
             {secrets.map((secret) => (
               <TableRow key={secret.id}>
-                <TableCell className="font-medium font-mono">
-                  {secret.name}
-                </TableCell>
+                <TableCell className="font-medium font-mono">{secret.name}</TableCell>
                 <TableCell className="text-muted-foreground">
                   {secret.description || "--"}
                 </TableCell>
@@ -464,15 +443,8 @@ function SecretsManager() {
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={() => handleEdit(secret)}
-                    >
-                      <HugeiconsIcon
-                        icon={PencilEdit01Icon}
-                        strokeWidth={2}
-                      />
+                    <Button variant="ghost" size="icon-xs" onClick={() => handleEdit(secret)}>
+                      <HugeiconsIcon icon={PencilEdit01Icon} strokeWidth={2} />
                       <span className="sr-only">Edit</span>
                     </Button>
                     <Button
@@ -538,13 +510,10 @@ export default function SettingsPage() {
     <div className="overflow-y-auto p-6 space-y-6">
       <h1 className="text-2xl font-bold">Settings</h1>
 
-      {/* Section 1: Security */}
       <Card>
         <CardHeader>
           <CardTitle>Security</CardTitle>
-          <CardDescription>
-            Manage your password and session.
-          </CardDescription>
+          <CardDescription>Manage your password and session.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <PasswordChangeForm />
@@ -558,11 +527,7 @@ export default function SettingsPage() {
                 End your current session and return to the login screen.
               </p>
             </div>
-            <Button
-              variant="destructive"
-              onClick={handleLogout}
-              disabled={loggingOut}
-            >
+            <Button variant="destructive" onClick={handleLogout} disabled={loggingOut}>
               <HugeiconsIcon icon={LogoutIcon} strokeWidth={2} />
               {loggingOut ? "Logging out..." : "Logout"}
             </Button>
@@ -570,7 +535,6 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Section 2: Secrets Manager */}
       <Card>
         <CardContent className="space-y-4 pt-2">
           <SecretsManager />

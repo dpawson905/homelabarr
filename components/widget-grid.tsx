@@ -142,7 +142,11 @@ export function WidgetGrid({ widgets: initialWidgets }: WidgetGridProps) {
               className="size-3"
             />
           </button>
-          <WidgetRenderer type={widget.type} widgetId={widget.id} config={widget.config as Record<string, unknown> | null} />
+          <WidgetRenderer
+            type={widget.type}
+            widgetId={widget.id}
+            config={widget.config as Record<string, unknown> | null}
+          />
         </div>
       ))}
     </ResponsiveGridLayout>

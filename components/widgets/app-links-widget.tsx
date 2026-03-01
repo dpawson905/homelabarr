@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { PlusSignIcon, Link04Icon } from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"
@@ -17,7 +17,6 @@ export function AppLinksWidget(): React.ReactElement {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingApp, setEditingApp] = useState<App | null>(null)
   const [healthStatuses, setHealthStatuses] = useState<Record<string, HealthCheckResult>>({})
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const fetchApps = useCallback(async () => {
     try {
@@ -52,19 +51,13 @@ export function AppLinksWidget(): React.ReactElement {
     fetchApps()
   }, [fetchApps])
 
-  // After apps are loaded, fetch health immediately and start polling
   useEffect(() => {
     if (apps.length === 0) return
 
     fetchHealth()
 
-    intervalRef.current = setInterval(fetchHealth, HEALTH_POLL_INTERVAL_MS)
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
-      }
-    }
+    const interval = setInterval(fetchHealth, HEALTH_POLL_INTERVAL_MS)
+    return () => clearInterval(interval)
   }, [apps.length, fetchHealth])
 
   function handleAddClick() {

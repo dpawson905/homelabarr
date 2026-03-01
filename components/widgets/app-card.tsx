@@ -28,11 +28,8 @@ function getStatusDotClasses(status?: HealthCheckResult["status"]): string {
 
 function getStatusTitle(health?: HealthCheckResult): string {
   if (!health) return "Status unknown"
-  const label = health.status.charAt(0).toUpperCase() + health.status.slice(1)
-  if (health.latency > 0) {
-    return `${label} - ${health.latency}ms`
-  }
-  return label
+  const label = health.status[0].toUpperCase() + health.status.slice(1)
+  return health.latency > 0 ? `${label} - ${health.latency}ms` : label
 }
 
 export function AppCard({ app, onEdit, onDeleted, health }: AppCardProps): React.ReactElement {

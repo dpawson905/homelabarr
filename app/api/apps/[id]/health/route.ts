@@ -16,7 +16,6 @@ export async function GET(
 ): Promise<NextResponse> {
   try {
     const { id } = await params;
-
     const app = db.select().from(apps).where(eq(apps.id, id)).get();
 
     if (!app) {
@@ -27,16 +26,13 @@ export async function GET(
       return NextResponse.json({ status: "disabled" });
     }
 
-    // Check cache first
     const cached = getCachedHealth(app.id, app.statusCheckInterval);
     if (cached) {
       return NextResponse.json(cached);
     }
 
-    // Cache miss or stale -- perform a fresh check
     const result = await checkAppHealth(app.url);
     setCachedHealth(app.id, result);
-
     return NextResponse.json(result);
   } catch (error) {
     const message =

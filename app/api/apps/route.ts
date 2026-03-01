@@ -3,19 +3,17 @@ import { db } from "@/lib/db";
 import { apps } from "@/lib/db/schema";
 import { asc } from "drizzle-orm";
 
-export async function GET() {
+export async function GET(): Promise<NextResponse> {
   try {
     const allApps = db.select().from(apps).orderBy(asc(apps.name)).all();
     return NextResponse.json({ apps: allApps });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch apps" },
-      { status: 500 }
-    );
+    const message = error instanceof Error ? error.message : "Failed to fetch apps";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const body = await request.json();
 
@@ -48,9 +46,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(created, { status: 201 });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to create app" },
-      { status: 500 }
-    );
+    const message = error instanceof Error ? error.message : "Failed to create app";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

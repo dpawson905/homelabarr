@@ -4,24 +4,26 @@ import { secrets } from "@/lib/db/schema";
 import { encrypt } from "@/lib/crypto/secrets";
 import { asc } from "drizzle-orm";
 
+// Encrypted fields (encryptedValue, iv, authTag) are intentionally excluded
+// from all list and create responses. Use GET /api/secrets/[id] to read a value.
+
+const PUBLIC_COLUMNS = {
+  id: secrets.id,
+  name: secrets.name,
+  description: secrets.description,
+  createdAt: secrets.createdAt,
+  updatedAt: secrets.updatedAt,
+};
+
 export async function GET(): Promise<NextResponse> {
   try {
     const allSecrets = db
-      .select({
-        id: secrets.id,
-        name: secrets.name,
-        description: secrets.description,
-        createdAt: secrets.createdAt,
-        updatedAt: secrets.updatedAt,
-      })
+      .select(PUBLIC_COLUMNS)
       .from(secrets)
       .orderBy(asc(secrets.name))
       .all();
 
-    // Return masked secrets — never expose encrypted values in list
-    const masked = allSecrets.map((s) => ({ ...s, masked: true }));
-
-    return NextResponse.json({ secrets: masked });
+    return NextResponse.json({ secrets: allSecrets });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to fetch secrets";
@@ -58,16 +60,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         authTag,
         description: body.description ?? null,
       })
-      .returning({
-        id: secrets.id,
-        name: secrets.name,
-        description: secrets.description,
-        createdAt: secrets.createdAt,
-        updatedAt: secrets.updatedAt,
-      })
+      .returning(PUBLIC_COLUMNS)
       .get();
 
-    return NextResponse.json({ ...created, masked: true }, { status: 201 });
+    return NextResponse.json(created, { status: 201 });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to create secret";

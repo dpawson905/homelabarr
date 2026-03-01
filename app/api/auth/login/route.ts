@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { settings } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { isPasswordSet, verifyPassword } from "@/lib/auth/password";
+import { verifyPassword } from "@/lib/auth/password";
 import { createSession, setSessionCookie } from "@/lib/auth/session";
 
 export async function POST(request: Request): Promise<NextResponse> {
   try {
     const body = await request.json();
-    const { password, rememberMe } = body as {
+    const { password, rememberMe = false } = body as {
       password: string;
       rememberMe?: boolean;
     };
@@ -20,15 +20,6 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
 
-    // Password must already be set to login
-    if (!isPasswordSet()) {
-      return NextResponse.json(
-        { error: "Setup required. No password has been configured." },
-        { status: 400 }
-      );
-    }
-
-    // Get the stored hash
     const row = db
       .select()
       .from(settings)
@@ -37,28 +28,21 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     if (!row) {
       return NextResponse.json(
-        { error: "Password hash not found" },
-        { status: 500 }
+        { error: "Setup required. No password has been configured." },
+        { status: 400 }
       );
     }
 
-    // Verify password
     if (!verifyPassword(password, row.value)) {
-      return NextResponse.json(
-        { error: "Invalid password" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Invalid password" }, { status: 401 });
     }
 
-    // Create session and set cookie
-    const remember = rememberMe ?? false;
-    const token = createSession(remember);
-    await setSessionCookie(token, remember);
+    const token = createSession(rememberMe);
+    await setSessionCookie(token, rememberMe);
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Login failed";
+    const message = error instanceof Error ? error.message : "Login failed";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

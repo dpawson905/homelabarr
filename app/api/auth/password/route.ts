@@ -7,7 +7,6 @@ import { hashPassword, verifyPassword } from "@/lib/auth/password";
 
 export async function PUT(request: Request): Promise<NextResponse> {
   try {
-    // Require authenticated session
     const session = await getSessionFromCookies();
     if (!session) {
       return NextResponse.json(
@@ -23,7 +22,6 @@ export async function PUT(request: Request): Promise<NextResponse> {
       confirmPassword: string;
     };
 
-    // Validate required fields
     if (!currentPassword || !newPassword || !confirmPassword) {
       return NextResponse.json(
         { error: "All password fields are required" },
@@ -31,7 +29,20 @@ export async function PUT(request: Request): Promise<NextResponse> {
       );
     }
 
-    // Get current password hash from settings
+    if (newPassword.length < 8) {
+      return NextResponse.json(
+        { error: "New password must be at least 8 characters" },
+        { status: 400 }
+      );
+    }
+
+    if (newPassword !== confirmPassword) {
+      return NextResponse.json(
+        { error: "New passwords do not match" },
+        { status: 400 }
+      );
+    }
+
     const row = db
       .select()
       .from(settings)
@@ -45,7 +56,6 @@ export async function PUT(request: Request): Promise<NextResponse> {
       );
     }
 
-    // Verify current password
     if (!verifyPassword(currentPassword, row.value)) {
       return NextResponse.json(
         { error: "Current password is incorrect" },
@@ -53,23 +63,6 @@ export async function PUT(request: Request): Promise<NextResponse> {
       );
     }
 
-    // Validate new password length
-    if (newPassword.length < 8) {
-      return NextResponse.json(
-        { error: "New password must be at least 8 characters" },
-        { status: 400 }
-      );
-    }
-
-    // Validate passwords match
-    if (newPassword !== confirmPassword) {
-      return NextResponse.json(
-        { error: "New passwords do not match" },
-        { status: 400 }
-      );
-    }
-
-    // Hash and update
     const newHash = hashPassword(newPassword);
     db.update(settings)
       .set({ value: newHash, updatedAt: new Date().toISOString() })

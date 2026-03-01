@@ -3,7 +3,6 @@ import { GridViewIcon } from "@hugeicons/core-free-icons"
 
 interface WidgetPlaceholderProps {
   type: string
-  id: string
 }
 
 export function WidgetPlaceholder({ type }: WidgetPlaceholderProps) {

@@ -23,19 +23,72 @@ import { Switch } from "@/components/ui/switch";
 
 type AuthState = "loading" | "login" | "setup";
 
+function PasswordToggle({
+  visible,
+  onToggle,
+}: {
+  visible: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+      tabIndex={-1}
+    >
+      <HugeiconsIcon
+        icon={visible ? ViewOffIcon : EyeIcon}
+        className="size-3.5"
+        strokeWidth={1.5}
+      />
+    </button>
+  );
+}
+
+function PasswordInput({
+  id,
+  value,
+  onChange,
+  placeholder,
+  autoFocus,
+}: {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  autoFocus?: boolean;
+}) {
+  const [visible, setVisible] = useState(false);
+
+  return (
+    <div className="relative">
+      <Input
+        id={id}
+        type={visible ? "text" : "password"}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        autoFocus={autoFocus}
+        required
+        minLength={8}
+        className="pr-8"
+      />
+      <PasswordToggle visible={visible} onToggle={() => setVisible(!visible)} />
+    </div>
+  );
+}
+
 export default function LoginPage() {
   const router = useRouter();
 
   const [authState, setAuthState] = useState<AuthState>("loading");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  // Check auth state on mount
   useEffect(() => {
     async function checkAuth() {
       try {
@@ -47,13 +100,8 @@ export default function LoginPage() {
           return;
         }
 
-        if (data.setupRequired) {
-          setAuthState("setup");
-        } else {
-          setAuthState("login");
-        }
+        setAuthState(data.setupRequired ? "setup" : "login");
       } catch {
-        // If we can't reach the session endpoint, default to login
         setAuthState("login");
       }
     }
@@ -91,7 +139,6 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
 
-    // Client-side validation
     if (password.length < 8) {
       setError("Password must be at least 8 characters");
       return;
@@ -129,7 +176,6 @@ export default function LoginPage() {
   return (
     <div className="min-h-svh flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm">
-        {/* Branding */}
         <div className="mb-6 flex flex-col items-center gap-2">
           <div className="flex items-center gap-2">
             <span className="relative flex h-3 w-3">
@@ -145,7 +191,6 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Loading state */}
         {authState === "loading" && (
           <Card>
             <CardContent className="flex items-center justify-center py-12">
@@ -158,7 +203,6 @@ export default function LoginPage() {
           </Card>
         )}
 
-        {/* Login form */}
         {authState === "login" && (
           <Card>
             <CardHeader>
@@ -170,38 +214,19 @@ export default function LoginPage() {
                 />
                 <CardTitle>Welcome back</CardTitle>
               </div>
-              <CardDescription>
-                Enter your password to continue
-              </CardDescription>
+              <CardDescription>Enter your password to continue</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleLogin} className="flex flex-col gap-4">
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="password">Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Enter your password"
-                      autoFocus
-                      required
-                      className="pr-8"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                      tabIndex={-1}
-                    >
-                      <HugeiconsIcon
-                        icon={showPassword ? ViewOffIcon : EyeIcon}
-                        className="size-3.5"
-                        strokeWidth={1.5}
-                      />
-                    </button>
-                  </div>
+                  <PasswordInput
+                    id="password"
+                    value={password}
+                    onChange={setPassword}
+                    placeholder="Enter your password"
+                    autoFocus
+                  />
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -219,9 +244,7 @@ export default function LoginPage() {
                   />
                 </div>
 
-                {error && (
-                  <p className="text-xs text-destructive">{error}</p>
-                )}
+                {error && <p className="text-xs text-destructive">{error}</p>}
 
                 <Button
                   type="submit"
@@ -244,7 +267,6 @@ export default function LoginPage() {
           </Card>
         )}
 
-        {/* Setup form */}
         {authState === "setup" && (
           <Card>
             <CardHeader>
@@ -264,73 +286,31 @@ export default function LoginPage() {
               <form onSubmit={handleSetup} className="flex flex-col gap-4">
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="setup-password">Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="setup-password"
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Minimum 8 characters"
-                      autoFocus
-                      required
-                      minLength={8}
-                      className="pr-8"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                      tabIndex={-1}
-                    >
-                      <HugeiconsIcon
-                        icon={showPassword ? ViewOffIcon : EyeIcon}
-                        className="size-3.5"
-                        strokeWidth={1.5}
-                      />
-                    </button>
-                  </div>
+                  <PasswordInput
+                    id="setup-password"
+                    value={password}
+                    onChange={setPassword}
+                    placeholder="Minimum 8 characters"
+                    autoFocus
+                  />
                 </div>
 
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="confirm-password">Confirm password</Label>
-                  <div className="relative">
-                    <Input
-                      id="confirm-password"
-                      type={showConfirmPassword ? "text" : "password"}
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="Confirm your password"
-                      required
-                      minLength={8}
-                      className="pr-8"
-                    />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setShowConfirmPassword(!showConfirmPassword)
-                      }
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                      tabIndex={-1}
-                    >
-                      <HugeiconsIcon
-                        icon={showConfirmPassword ? ViewOffIcon : EyeIcon}
-                        className="size-3.5"
-                        strokeWidth={1.5}
-                      />
-                    </button>
-                  </div>
+                  <PasswordInput
+                    id="confirm-password"
+                    value={confirmPassword}
+                    onChange={setConfirmPassword}
+                    placeholder="Confirm your password"
+                  />
                 </div>
 
-                {error && (
-                  <p className="text-xs text-destructive">{error}</p>
-                )}
+                {error && <p className="text-xs text-destructive">{error}</p>}
 
                 <Button
                   type="submit"
                   size="lg"
-                  disabled={
-                    submitting || !password || !confirmPassword
-                  }
+                  disabled={submitting || !password || !confirmPassword}
                   className="w-full"
                 >
                   {submitting ? (

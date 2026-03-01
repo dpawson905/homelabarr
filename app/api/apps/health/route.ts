@@ -7,23 +7,13 @@ import {
   type HealthCheckResult,
 } from "@/lib/health-check";
 
-interface DisabledStatus {
-  status: "disabled";
-}
-
-type AppHealthStatus = HealthCheckResult | DisabledStatus;
+type AppHealthStatus = HealthCheckResult | { status: "disabled" };
 
 export async function GET(): Promise<NextResponse> {
   try {
     const allApps = getApps();
-
     const statuses: Record<string, AppHealthStatus> = {};
-
-    const checksToRun: Array<{
-      id: string;
-      url: string;
-      interval: number;
-    }> = [];
+    const staleApps: Array<{ id: string; url: string }> = [];
 
     for (const app of allApps) {
       if (app.statusCheckEnabled !== 1) {
@@ -35,28 +25,17 @@ export async function GET(): Promise<NextResponse> {
       if (cached) {
         statuses[app.id] = cached;
       } else {
-        checksToRun.push({
-          id: app.id,
-          url: app.url,
-          interval: app.statusCheckInterval,
-        });
+        staleApps.push({ id: app.id, url: app.url });
       }
     }
 
-    // Run stale/missing checks in parallel
-    if (checksToRun.length > 0) {
-      const results = await Promise.all(
-        checksToRun.map(async ({ id, url }) => {
-          const result = await checkAppHealth(url);
-          setCachedHealth(id, result);
-          return { id, result };
-        })
-      );
-
-      for (const { id, result } of results) {
+    await Promise.all(
+      staleApps.map(async ({ id, url }) => {
+        const result = await checkAppHealth(url);
+        setCachedHealth(id, result);
         statuses[id] = result;
-      }
-    }
+      })
+    );
 
     return NextResponse.json({ statuses });
   } catch (error) {

@@ -1,6 +1,3 @@
-// ─── Health Check Utility ────────────────────────────────────────────────────
-// Performs HTTP health checks on app URLs and caches results in memory.
-
 export type HealthStatus = "online" | "offline" | "degraded" | "disabled";
 
 export interface HealthCheckResult {
@@ -40,49 +37,52 @@ export function setCachedHealth(appId: string, result: HealthCheckResult): void 
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 
+interface FetchResult {
+  response: Response;
+  latency: number;
+}
+
+async function attemptFetch(
+  url: string,
+  method: "HEAD" | "GET",
+  timeoutMs: number
+): Promise<FetchResult | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const start = Date.now();
+
+  try {
+    const response = await fetch(url, {
+      method,
+      signal: controller.signal,
+      redirect: "follow",
+      cache: "no-store",
+    });
+    clearTimeout(timer);
+    return { response, latency: Date.now() - start };
+  } catch {
+    clearTimeout(timer);
+    return null;
+  }
+}
+
 export async function checkAppHealth(
   url: string,
   timeoutMs: number = DEFAULT_TIMEOUT_MS
 ): Promise<HealthCheckResult> {
   const checkedAt = new Date().toISOString();
 
-  // Try HEAD first (lighter), fall back to GET
-  for (const method of ["HEAD", "GET"] as const) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    const start = Date.now();
+  // Try HEAD first (lighter), fall back to GET on network failure
+  const fetchResult =
+    (await attemptFetch(url, "HEAD", timeoutMs)) ??
+    (await attemptFetch(url, "GET", timeoutMs));
 
-    try {
-      const response = await fetch(url, {
-        method,
-        signal: controller.signal,
-        redirect: "follow",
-        // Avoid caching stale results
-        cache: "no-store",
-      });
-
-      clearTimeout(timer);
-      const latency = Date.now() - start;
-      const statusCode = response.status;
-
-      if (statusCode >= 200 && statusCode < 300) {
-        return { status: "online", latency, statusCode, checkedAt };
-      }
-
-      // Server is reachable but returned a non-2xx status
-      return { status: "degraded", latency, statusCode, checkedAt };
-    } catch (error) {
-      clearTimeout(timer);
-
-      // If HEAD failed, try GET before giving up
-      if (method === "HEAD") continue;
-
-      // GET also failed -- the service is offline
-      const latency = Date.now() - start;
-      return { status: "offline", latency, statusCode: null, checkedAt };
-    }
+  if (!fetchResult) {
+    return { status: "offline", latency: 0, statusCode: null, checkedAt };
   }
 
-  // Unreachable, but TypeScript needs a return
-  return { status: "offline", latency: 0, statusCode: null, checkedAt };
+  const { response, latency } = fetchResult;
+  const statusCode = response.status;
+  const status = statusCode >= 200 && statusCode < 300 ? "online" : "degraded";
+  return { status, latency, statusCode, checkedAt };
 }

@@ -6,13 +6,6 @@ import { createSession, setSessionCookie } from "@/lib/auth/session";
 
 export async function POST(request: Request): Promise<NextResponse> {
   try {
-    const body = await request.json();
-    const { password, confirmPassword } = body as {
-      password: string;
-      confirmPassword: string;
-    };
-
-    // Only allow setup when no password exists
     if (isPasswordSet()) {
       return NextResponse.json(
         { error: "Password has already been configured" },
@@ -20,7 +13,12 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
 
-    // Validate inputs
+    const body = await request.json();
+    const { password, confirmPassword } = body as {
+      password: string;
+      confirmPassword: string;
+    };
+
     if (!password || !confirmPassword) {
       return NextResponse.json(
         { error: "Password and confirmation are required" },
@@ -42,20 +40,15 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
 
-    // Hash and store password
     const hash = hashPassword(password);
-    db.insert(settings)
-      .values({ key: "passwordHash", value: hash })
-      .run();
+    db.insert(settings).values({ key: "passwordHash", value: hash }).run();
 
-    // Auto-login after setup: create session and set cookie
     const token = createSession(false);
     await setSessionCookie(token, false);
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Setup failed";
+    const message = error instanceof Error ? error.message : "Setup failed";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

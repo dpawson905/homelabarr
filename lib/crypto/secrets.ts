@@ -38,7 +38,6 @@ export function getEncryptionKey(): Buffer {
     writeFileSync(KEY_FILE_PATH, secret, { mode: 0o600 });
   }
 
-  // Derive proper key using scryptSync
   cachedKey = scryptSync(secret, SALT, KEY_LENGTH);
   return cachedKey;
 }

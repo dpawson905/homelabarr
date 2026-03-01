@@ -10,11 +10,11 @@ import {
 } from "@/components/ui/breadcrumb"
 import { getBoards } from "@/lib/db/queries"
 
-export default function SettingsLayout({
-  children,
-}: {
+type LayoutProps = {
   children: React.ReactNode
-}) {
+}
+
+export default function SettingsLayout({ children }: LayoutProps) {
   const boards = getBoards()
 
   return (

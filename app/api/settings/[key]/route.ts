@@ -3,17 +3,15 @@ import { db } from "@/lib/db";
 import { settings } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
+type RouteContext = { params: Promise<{ key: string }> };
+
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ key: string }> }
-) {
+  { params }: RouteContext
+): Promise<NextResponse> {
   try {
     const { key } = await params;
-    const setting = db
-      .select()
-      .from(settings)
-      .where(eq(settings.key, key))
-      .get();
+    const setting = db.select().from(settings).where(eq(settings.key, key)).get();
 
     if (!setting) {
       return NextResponse.json({ error: "Setting not found" }, { status: 404 });
@@ -21,26 +19,21 @@ export async function GET(
 
     return NextResponse.json({ key: setting.key, value: setting.value });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch setting" },
-      { status: 500 }
-    );
+    const message = error instanceof Error ? error.message : "Failed to fetch setting";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ key: string }> }
-) {
+  { params }: RouteContext
+): Promise<NextResponse> {
   try {
     const { key } = await params;
     const body = await request.json();
 
     if (body.value === undefined) {
-      return NextResponse.json(
-        { error: "value is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "value is required" }, { status: 400 });
     }
 
     const value = typeof body.value === "string" ? body.value : String(body.value);
@@ -57,9 +50,7 @@ export async function PUT(
 
     return NextResponse.json({ key: result.key, value: result.value });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to upsert setting" },
-      { status: 500 }
-    );
+    const message = error instanceof Error ? error.message : "Failed to upsert setting";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -1,22 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { widgets, widgetConfigs, boards } from "@/lib/db/schema";
-import { eq, asc } from "drizzle-orm";
+import { boards, widgetConfigs, widgets } from "@/lib/db/schema";
+import { asc, eq } from "drizzle-orm";
 
-function parseConfig(configStr: string): unknown {
+import { parseConfig, serializeConfig } from "./helpers";
+
+export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
-    return JSON.parse(configStr);
-  } catch {
-    return {};
-  }
-}
+    const boardId = new URL(request.url).searchParams.get("boardId");
 
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const boardId = searchParams.get("boardId");
-
-    let query = db
+    const baseQuery = db
       .select({
         id: widgets.id,
         boardId: widgets.boardId,
@@ -33,11 +26,9 @@ export async function GET(request: NextRequest) {
       .leftJoin(widgetConfigs, eq(widgets.id, widgetConfigs.widgetId))
       .orderBy(asc(widgets.y), asc(widgets.x));
 
-    if (boardId) {
-      query = query.where(eq(widgets.boardId, boardId)) as typeof query;
-    }
-
-    const rows = query.all();
+    const rows = boardId
+      ? baseQuery.where(eq(widgets.boardId, boardId)).all()
+      : baseQuery.all();
 
     const result = rows.map((row) => ({
       ...row,
@@ -46,14 +37,12 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ widgets: result });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch widgets" },
-      { status: 500 }
-    );
+    const message = error instanceof Error ? error.message : "Failed to fetch widgets";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const body = await request.json();
 
@@ -71,26 +60,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate board exists
-    const board = db
-      .select()
-      .from(boards)
-      .where(eq(boards.id, body.boardId))
-      .get();
-
+    const board = db.select().from(boards).where(eq(boards.id, body.boardId)).get();
     if (!board) {
-      return NextResponse.json(
-        { error: "Board not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Board not found" }, { status: 404 });
     }
 
-    const configValue =
-      body.config !== undefined
-        ? typeof body.config === "string"
-          ? body.config
-          : JSON.stringify(body.config)
-        : "{}";
+    const configValue = body.config !== undefined ? serializeConfig(body.config) : "{}";
 
     const result = db.transaction((tx) => {
       const widget = tx
@@ -108,10 +83,7 @@ export async function POST(request: NextRequest) {
 
       const config = tx
         .insert(widgetConfigs)
-        .values({
-          widgetId: widget.id,
-          config: configValue,
-        })
+        .values({ widgetId: widget.id, config: configValue })
         .returning()
         .get();
 
@@ -120,9 +92,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to create widget" },
-      { status: 500 }
-    );
+    const message = error instanceof Error ? error.message : "Failed to create widget";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

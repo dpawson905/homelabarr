@@ -22,7 +22,7 @@ interface AppFormDialogProps {
   app?: App | null
 }
 
-export function AppFormDialog({ open, onOpenChange, onSaved, app }: AppFormDialogProps) {
+export function AppFormDialog({ open, onOpenChange, onSaved, app }: AppFormDialogProps): React.ReactElement {
   const isEdit = !!app
 
   const [name, setName] = useState("")
@@ -55,10 +55,6 @@ export function AppFormDialog({ open, onOpenChange, onSaved, app }: AppFormDialo
     }
   }, [open, app])
 
-  function validateUrl(value: string): boolean {
-    return value.startsWith("http://") || value.startsWith("https://")
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
@@ -75,7 +71,7 @@ export function AppFormDialog({ open, onOpenChange, onSaved, app }: AppFormDialo
       return
     }
 
-    if (!validateUrl(trimmedUrl)) {
+    if (!trimmedUrl.startsWith("http://") && !trimmedUrl.startsWith("https://")) {
       setError("URL must start with http:// or https://")
       return
     }
@@ -84,22 +80,20 @@ export function AppFormDialog({ open, onOpenChange, onSaved, app }: AppFormDialo
     setError(null)
 
     try {
-      const body: Record<string, unknown> = {
-        name: trimmedName,
-        url: trimmedUrl,
-        icon: icon.trim() || null,
-        description: description.trim() || null,
-        statusCheckEnabled: statusCheckEnabled ? 1 : 0,
-        statusCheckInterval,
-      }
-
       const endpoint = isEdit ? `/api/apps/${app.id}` : "/api/apps"
       const method = isEdit ? "PATCH" : "POST"
 
       const res = await fetch(endpoint, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          name: trimmedName,
+          url: trimmedUrl,
+          icon: icon.trim() || null,
+          description: description.trim() || null,
+          statusCheckEnabled: statusCheckEnabled ? 1 : 0,
+          statusCheckInterval,
+        }),
       })
 
       if (!res.ok) {
@@ -114,6 +108,11 @@ export function AppFormDialog({ open, onOpenChange, onSaved, app }: AppFormDialo
     } finally {
       setLoading(false)
     }
+  }
+
+  function getSubmitLabel(): string {
+    if (loading) return isEdit ? "Saving..." : "Creating..."
+    return isEdit ? "Save" : "Create"
   }
 
   const canSubmit = name.trim().length > 0 && url.trim().length > 0
@@ -131,7 +130,6 @@ export function AppFormDialog({ open, onOpenChange, onSaved, app }: AppFormDialo
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-3 py-3">
-            {/* Name */}
             <div className="grid gap-1.5">
               <Label htmlFor="app-name">Name</Label>
               <Input
@@ -143,7 +141,6 @@ export function AppFormDialog({ open, onOpenChange, onSaved, app }: AppFormDialo
               />
             </div>
 
-            {/* URL */}
             <div className="grid gap-1.5">
               <Label htmlFor="app-url">URL</Label>
               <Input
@@ -154,7 +151,6 @@ export function AppFormDialog({ open, onOpenChange, onSaved, app }: AppFormDialo
               />
             </div>
 
-            {/* Icon */}
             <div className="grid gap-1.5">
               <Label htmlFor="app-icon">Icon (optional)</Label>
               <Input
@@ -165,7 +161,6 @@ export function AppFormDialog({ open, onOpenChange, onSaved, app }: AppFormDialo
               />
             </div>
 
-            {/* Description */}
             <div className="grid gap-1.5">
               <Label htmlFor="app-description">Description (optional)</Label>
               <Input
@@ -176,7 +171,6 @@ export function AppFormDialog({ open, onOpenChange, onSaved, app }: AppFormDialo
               />
             </div>
 
-            {/* Status Check Toggle */}
             <div className="flex items-center justify-between gap-2">
               <Label htmlFor="app-status-check" className="cursor-pointer">
                 Enable Status Check
@@ -189,7 +183,6 @@ export function AppFormDialog({ open, onOpenChange, onSaved, app }: AppFormDialo
               />
             </div>
 
-            {/* Check Interval - only shown when status check is enabled */}
             {statusCheckEnabled && (
               <div className="grid gap-1.5">
                 <Label htmlFor="app-check-interval">Check every N seconds</Label>
@@ -209,13 +202,7 @@ export function AppFormDialog({ open, onOpenChange, onSaved, app }: AppFormDialo
           </div>
           <DialogFooter>
             <Button type="submit" disabled={loading || !canSubmit}>
-              {loading
-                ? isEdit
-                  ? "Saving..."
-                  : "Creating..."
-                : isEdit
-                  ? "Save"
-                  : "Create"}
+              {getSubmitLabel()}
             </Button>
           </DialogFooter>
         </form>

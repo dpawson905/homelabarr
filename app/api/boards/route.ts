@@ -3,19 +3,17 @@ import { db } from "@/lib/db";
 import { boards } from "@/lib/db/schema";
 import { asc, sql } from "drizzle-orm";
 
-export async function GET() {
+export async function GET(): Promise<NextResponse> {
   try {
     const allBoards = db.select().from(boards).orderBy(asc(boards.position)).all();
     return NextResponse.json({ boards: allBoards });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch boards" },
-      { status: 500 }
-    );
+    const message = error instanceof Error ? error.message : "Failed to fetch boards";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const body = await request.json();
 
@@ -37,19 +35,13 @@ export async function POST(request: NextRequest) {
 
     const created = db
       .insert(boards)
-      .values({
-        name: body.name,
-        icon: body.icon ?? null,
-        position,
-      })
+      .values({ name: body.name, icon: body.icon ?? null, position })
       .returning()
       .get();
 
     return NextResponse.json(created, { status: 201 });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to create board" },
-      { status: 500 }
-    );
+    const message = error instanceof Error ? error.message : "Failed to create board";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

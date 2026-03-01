@@ -14,8 +14,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
-// ─── CreateBoardDialog ──────────────────────────────────────────────────────
-
 interface CreateBoardDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -27,7 +25,6 @@ export function CreateBoardDialog({ open, onOpenChange }: CreateBoardDialogProps
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Reset form state when dialog opens/closes
   useEffect(() => {
     if (open) {
       setName("")
@@ -106,8 +103,6 @@ export function CreateBoardDialog({ open, onOpenChange }: CreateBoardDialogProps
   )
 }
 
-// ─── RenameBoardDialog ──────────────────────────────────────────────────────
-
 interface RenameBoardDialogProps {
   board: { id: string; name: string } | null
   open: boolean
@@ -120,7 +115,6 @@ export function RenameBoardDialog({ board, open, onOpenChange }: RenameBoardDial
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Pre-fill the input with the current board name when dialog opens
   useEffect(() => {
     if (open && board) {
       setName(board.name)
@@ -199,8 +193,6 @@ export function RenameBoardDialog({ board, open, onOpenChange }: RenameBoardDial
   )
 }
 
-// ─── DeleteBoardDialog ──────────────────────────────────────────────────────
-
 interface DeleteBoardDialogProps {
   board: { id: string; name: string } | null
   open: boolean
@@ -213,7 +205,6 @@ export function DeleteBoardDialog({ board, open, onOpenChange, boardCount }: Del
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Reset error state when dialog opens
   useEffect(() => {
     if (open) {
       setError(null)
@@ -229,7 +220,6 @@ export function DeleteBoardDialog({ board, open, onOpenChange, boardCount }: Del
     setError(null)
 
     try {
-      // Fetch the list of boards to find a fallback before deleting
       const boardsRes = await fetch("/api/boards")
       if (!boardsRes.ok) {
         throw new Error("Failed to fetch boards")
@@ -266,13 +256,12 @@ export function DeleteBoardDialog({ board, open, onOpenChange, boardCount }: Del
           <DialogDescription>
             {isLastBoard
               ? "You cannot delete the last remaining board."
-              : (
-                  <>
-                    Are you sure you want to delete{" "}
-                    <span className="font-medium text-foreground">{board?.name}</span>?
-                    This action cannot be undone.
-                  </>
-                )}
+              : <>
+                  Are you sure you want to delete{" "}
+                  <span className="font-medium text-foreground">{board?.name}</span>?
+                  This action cannot be undone.
+                </>
+            }
           </DialogDescription>
         </DialogHeader>
         {error && (
