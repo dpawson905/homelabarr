@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { HugeiconsIcon } from "@hugeicons/react"
@@ -10,6 +10,8 @@ import {
   PlusSignIcon,
   PencilEdit01Icon,
   Delete02Icon,
+  Download05Icon,
+  Upload04Icon,
 } from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -484,6 +486,238 @@ function SecretsManager() {
   )
 }
 
+// ─── Config Export / Import ─────────────────────────────────────────────────
+
+interface ParsedConfig {
+  version: number
+  boards?: unknown[]
+  apps?: unknown[]
+  [key: string]: unknown
+}
+
+interface ImportResult {
+  boardsImported: number
+  widgetsImported: number
+  appsImported: number
+  settingsImported: number
+  warnings: string[]
+}
+
+function ConfigExportImport() {
+  const router = useRouter()
+  const [exporting, setExporting] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [parsedConfig, setParsedConfig] = useState<ParsedConfig | null>(null)
+  const [fileName, setFileName] = useState<string | null>(null)
+  const [showReplaceConfirm, setShowReplaceConfirm] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  async function handleExport() {
+    setExporting(true)
+    try {
+      const res = await fetch("/api/config/export")
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        toast.error(data?.error || "Failed to export configuration")
+        return
+      }
+
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+
+      // Extract filename from Content-Disposition header or use default
+      const disposition = res.headers.get("Content-Disposition")
+      const match = disposition?.match(/filename="?([^"]+)"?/)
+      a.download = match?.[1] ?? `homelabarr-export-${new Date().toISOString().slice(0, 10)}.json`
+
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+
+      toast.success("Configuration exported")
+    } catch {
+      toast.error("Failed to export configuration")
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target?.result as string)
+        if (!parsed.version) {
+          toast.error("Invalid configuration file: missing version field")
+          return
+        }
+        setParsedConfig(parsed as ParsedConfig)
+        setFileName(file.name)
+      } catch {
+        toast.error("Invalid JSON file")
+      }
+    }
+    reader.readAsText(file)
+
+    // Reset input so re-selecting the same file triggers onChange
+    e.target.value = ""
+  }
+
+  function clearFile() {
+    setParsedConfig(null)
+    setFileName(null)
+  }
+
+  async function handleImport(mode: "merge" | "replace") {
+    if (!parsedConfig) return
+    setImporting(true)
+    setShowReplaceConfirm(false)
+
+    try {
+      const res = await fetch("/api/config/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ config: parsedConfig, mode }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        toast.error(data.error || "Failed to import configuration")
+        return
+      }
+
+      const result = data as ImportResult
+      toast.success(
+        `Imported ${result.boardsImported} boards, ${result.widgetsImported} widgets, ${result.appsImported} apps`
+      )
+
+      if (result.warnings?.length) {
+        for (const warning of result.warnings) {
+          toast.warning(warning)
+        }
+      }
+
+      clearFile()
+      router.refresh()
+    } catch {
+      toast.error("Failed to import configuration")
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const boardCount = Array.isArray(parsedConfig?.boards) ? parsedConfig.boards.length : 0
+  const appCount = Array.isArray(parsedConfig?.apps) ? parsedConfig.apps.length : 0
+
+  return (
+    <>
+      <div className="space-y-4">
+        {/* Export */}
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">Export</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Download your dashboard configuration as a JSON file.
+            </p>
+          </div>
+          <Button onClick={handleExport} disabled={exporting}>
+            <HugeiconsIcon icon={Download05Icon} strokeWidth={2} />
+            {exporting ? "Exporting..." : "Download Export"}
+          </Button>
+        </div>
+
+        <Separator />
+
+        {/* Import */}
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">Import</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Upload a JSON configuration file to restore or merge settings.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importing}
+          >
+            <HugeiconsIcon icon={Upload04Icon} strokeWidth={2} />
+            Import Configuration
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={handleFileSelect}
+          />
+        </div>
+
+        {/* File preview and mode selection */}
+        {parsedConfig && fileName && (
+          <div className="rounded-lg border p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">{fileName}</p>
+                <p className="text-xs text-muted-foreground">
+                  {boardCount} board{boardCount !== 1 ? "s" : ""}, {appCount} app{appCount !== 1 ? "s" : ""}
+                </p>
+              </div>
+              <Button variant="ghost" size="sm" onClick={clearFile}>
+                Cancel
+              </Button>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => handleImport("merge")}
+                disabled={importing}
+              >
+                {importing ? "Importing..." : "Merge"}
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => setShowReplaceConfirm(true)}
+                disabled={importing}
+              >
+                {importing ? "Importing..." : "Replace"}
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Replace confirmation dialog */}
+      <AlertDialog open={showReplaceConfirm} onOpenChange={setShowReplaceConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Replace All Data?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will delete all existing boards, widgets, and apps. Your password
+              and secrets will be preserved. Continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => handleImport("replace")}
+            >
+              Replace Everything
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  )
+}
+
 // ─── Settings Page ──────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
@@ -532,6 +766,16 @@ export default function SettingsPage() {
               {loggingOut ? "Logging out..." : "Logout"}
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Configuration</CardTitle>
+          <CardDescription>Export or import your dashboard configuration.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ConfigExportImport />
         </CardContent>
       </Card>
 
