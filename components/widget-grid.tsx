@@ -8,7 +8,7 @@ import "react-grid-layout/css/styles.css"
 import "react-resizable/css/styles.css"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { DragDropIcon, Cancel01Icon } from "@hugeicons/core-free-icons"
-import { WidgetPlaceholder } from "@/components/widget-placeholder"
+import { WidgetRenderer } from "@/components/widget-renderer"
 
 const ResponsiveGridLayout = WidthProvider(Responsive)
 
@@ -30,57 +30,43 @@ interface WidgetGridProps {
   boardId: string
 }
 
-export function WidgetGrid({ widgets: initialWidgets, boardId }: WidgetGridProps) {
+export function WidgetGrid({ widgets: initialWidgets }: WidgetGridProps) {
   const router = useRouter()
   const [widgets, setWidgets] = useState<Widget[]>(initialWidgets)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  const initialLayout: Layout = widgets.map((widget) => ({
-    i: widget.id,
-    x: widget.x,
-    y: widget.y,
-    w: widget.w,
-    h: widget.h,
-    minW: 1,
-    minH: 1,
-  }))
-
-  const [layouts, setLayouts] = useState<ResponsiveLayouts>({
-    lg: initialLayout,
-    md: initialLayout,
-    sm: initialLayout,
-    xs: initialLayout,
-    xxs: initialLayout,
+  const [layouts, setLayouts] = useState<ResponsiveLayouts>(() => {
+    const initial: Layout = initialWidgets.map((widget) => ({
+      i: widget.id,
+      x: widget.x,
+      y: widget.y,
+      w: widget.w,
+      h: widget.h,
+      minW: 1,
+      minH: 1,
+    }))
+    return { lg: initial, md: initial, sm: initial, xs: initial, xxs: initial }
   })
 
-  const saveLayoutChanges = useCallback(
-    (currentLayout: Layout) => {
+  const handleLayoutChange = useCallback(
+    (currentLayout: Layout, allLayouts: ResponsiveLayouts) => {
+      setLayouts(allLayouts)
+
       const changes = currentLayout.filter((item: LayoutItem) => {
         const widget = widgets.find((w) => w.id === item.i)
-        if (!widget) return false
-        return (
-          widget.x !== item.x ||
-          widget.y !== item.y ||
-          widget.w !== item.w ||
-          widget.h !== item.h
-        )
+        return widget && (widget.x !== item.x || widget.y !== item.y || widget.w !== item.w || widget.h !== item.h)
       })
 
       if (changes.length === 0) return
 
-      // Update local widget state optimistically
       setWidgets((prev) =>
         prev.map((w) => {
           const changed = changes.find((c: LayoutItem) => c.i === w.id)
-          if (!changed) return w
-          return { ...w, x: changed.x, y: changed.y, w: changed.w, h: changed.h }
+          return changed ? { ...w, x: changed.x, y: changed.y, w: changed.w, h: changed.h } : w
         })
       )
 
-      // Debounced save to API
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current)
-      }
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
 
       timeoutRef.current = setTimeout(() => {
         Promise.all(
@@ -99,38 +85,24 @@ export function WidgetGrid({ widgets: initialWidgets, boardId }: WidgetGridProps
     [widgets]
   )
 
-  const handleLayoutChange = useCallback(
-    (currentLayout: Layout, allLayouts: ResponsiveLayouts) => {
-      setLayouts(allLayouts)
-      saveLayoutChanges(currentLayout)
-    },
-    [saveLayoutChanges]
-  )
-
   const handleDeleteWidget = useCallback(
     async (widgetId: string) => {
       try {
-        const response = await fetch(`/api/widgets/${widgetId}`, {
-          method: "DELETE",
-        })
+        const response = await fetch(`/api/widgets/${widgetId}`, { method: "DELETE" })
 
         if (!response.ok) {
           console.warn("Failed to delete widget:", await response.text())
           return
         }
 
-        // Remove from local state
         setWidgets((prev) => prev.filter((w) => w.id !== widgetId))
-        setLayouts((prev) => {
-          const updated: ResponsiveLayouts = {}
-          for (const [bp, layout] of Object.entries(prev)) {
-            if (layout) {
-              updated[bp] = layout.filter((item: LayoutItem) => item.i !== widgetId)
-            }
-          }
-          return updated
-        })
-
+        setLayouts((prev) =>
+          Object.fromEntries(
+            Object.entries(prev)
+              .filter(([, layout]) => layout)
+              .map(([bp, layout]) => [bp, layout!.filter((item: LayoutItem) => item.i !== widgetId)])
+          )
+        )
         router.refresh()
       } catch (error) {
         console.warn("Failed to delete widget:", error)
@@ -170,7 +142,7 @@ export function WidgetGrid({ widgets: initialWidgets, boardId }: WidgetGridProps
               className="size-3"
             />
           </button>
-          <WidgetPlaceholder type={widget.type} />
+          <WidgetRenderer type={widget.type} widgetId={widget.id} config={widget.config as Record<string, unknown> | null} />
         </div>
       ))}
     </ResponsiveGridLayout>
