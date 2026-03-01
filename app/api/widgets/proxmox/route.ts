@@ -37,25 +37,29 @@ function mapNode(raw: ProxmoxNodeRaw): ProxmoxNode {
   }
 }
 
+function mapGuestStatus(raw: string): ProxmoxGuest["status"] {
+  if (raw === "running") return "running"
+  if (raw === "paused") return "paused"
+  return "stopped"
+}
+
 function mapGuest(
   raw: ProxmoxGuestRaw,
   nodeName: string,
   guestType: "qemu" | "lxc"
 ): ProxmoxGuest {
-  const isStopped = raw.status !== "running" && raw.status !== "paused"
+  const status = mapGuestStatus(raw.status)
+  const isActive = status === "running" || status === "paused"
+  const fallbackName = guestType === "qemu" ? `VM ${raw.vmid}` : `CT ${raw.vmid}`
+
   return {
     vmid: raw.vmid,
-    name: raw.name ?? `${guestType === "qemu" ? "VM" : "CT"} ${raw.vmid}`,
+    name: raw.name ?? fallbackName,
     node: nodeName,
     type: guestType,
-    status:
-      raw.status === "running"
-        ? "running"
-        : raw.status === "paused"
-          ? "paused"
-          : "stopped",
-    cpuUsage: isStopped ? 0 : raw.cpu * 100,
-    memUsage: isStopped || raw.maxmem === 0 ? 0 : (raw.mem / raw.maxmem) * 100,
+    status,
+    cpuUsage: isActive ? raw.cpu * 100 : 0,
+    memUsage: isActive && raw.maxmem > 0 ? (raw.mem / raw.maxmem) * 100 : 0,
     memTotal: raw.maxmem,
     uptime: raw.uptime,
   }
@@ -105,11 +109,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const rawNodes = nodesResult.data.data ?? []
   const nodes: ProxmoxNode[] = rawNodes.map(mapNode)
-  const guests: ProxmoxGuest[] = []
-
   const onlineNodes = rawNodes.filter((n) => n.status === "online")
 
-  const guestResults = await Promise.all(
+  const guestsByNode = await Promise.all(
     onlineNodes.map(async (node) => {
       const [qemuResult, lxcResult] = await Promise.all([
         fetchService<{ data: ProxmoxGuestRaw[] }>({
@@ -144,9 +146,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     })
   )
 
-  for (const nodeGuests of guestResults) {
-    guests.push(...nodeGuests)
-  }
+  const guests = guestsByNode.flat()
 
   const response: ProxmoxResponse = {
     nodes,

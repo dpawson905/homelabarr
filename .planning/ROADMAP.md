@@ -12,9 +12,9 @@ Build a polished, fully customizable homelab dashboard from the ground up. Start
 - [x] **Phase 4: App Bookmarks & Status Monitoring** — Link cards with icons and health checks for self-hosted services
 - [x] **Phase 5: Authentication & Secrets** — Password login and encrypted credential storage
 - [x] **Phase 6: Utility Widgets** — Clock, weather, calendar, notes, RSS, and other standalone widgets
-- [ ] **Phase 7: System & Docker Widgets** — System resource monitoring and Docker container management
-- [ ] **Phase 8: Media & Download Integrations** — Integrations with media servers, managers, and download clients
-- [ ] **Phase 9: Infrastructure Integrations** — DNS, proxy, virtualization, smart home, and monitoring integrations
+- [x] **Phase 7: System & Docker Widgets** — System resource monitoring and Docker container management
+- [x] **Phase 8: Media & Download Integrations** — Integrations with media servers, managers, and download clients
+- [x] **Phase 9: Infrastructure Integrations** — DNS, proxy, virtualization, smart home, and monitoring integrations
 - [ ] **Phase 10: Polish & Export** — Configuration export/import, icon library, and final polish
 
 ## Phase Details
@@ -169,9 +169,9 @@ Build a polished, fully customizable homelab dashboard from the ground up. Start
 | 4. App Bookmarks & Status Monitoring | Complete | 2026-02-28 |
 | 5. Authentication & Secrets | Complete | 2026-03-01 |
 | 6. Utility Widgets | Complete | 2026-03-01 |
-| 7. System & Docker Widgets | Not started | - |
-| 8. Media & Download Integrations | Not started | - |
-| 9. Infrastructure Integrations | Not started | - |
+| 7. System & Docker Widgets | Complete | 2026-03-01 |
+| 8. Media & Download Integrations | Complete | 2026-03-01 |
+| 9. Infrastructure Integrations | Complete | 2026-03-01 |
 | 10. Polish & Export | Not started | - |
 
 ---

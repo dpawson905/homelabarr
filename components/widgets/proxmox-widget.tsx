@@ -58,12 +58,151 @@ function isConfigured(config: Record<string, unknown> | null): boolean {
   )
 }
 
+const GUEST_STATUS_ORDER: Record<string, number> = { running: 0, paused: 1, stopped: 2 }
+
+function UsageBar({ label, pct }: { label: string; pct: number }): React.ReactElement {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="w-7 shrink-0 text-[0.5625rem] text-muted-foreground">{label}</span>
+      <div className="h-1.5 flex-1 rounded-full bg-muted">
+        <div
+          className={cn("h-full rounded-full transition-all", usageColor(pct))}
+          style={{ width: `${Math.min(pct, 100)}%` }}
+        />
+      </div>
+      <span className="w-8 shrink-0 text-right text-[0.5625rem] text-muted-foreground">
+        {pct.toFixed(0)}%
+      </span>
+    </div>
+  )
+}
+
+function LoadingSkeleton(): React.ReactElement {
+  return (
+    <div>
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div
+          key={i}
+          className="flex items-center gap-3 px-3 py-2.5 border-b border-border"
+        >
+          <Skeleton className="size-2 shrink-0 rounded-full" />
+          <div className="flex-1 space-y-1.5">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-1.5 w-full rounded-full" />
+            <Skeleton className="h-1.5 w-full rounded-full" />
+          </div>
+          <Skeleton className="h-3 w-12" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function EmptyState({ message }: { message: string }): React.ReactElement {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-2 py-6">
+      <HugeiconsIcon
+        icon={ComputerIcon}
+        strokeWidth={1.5}
+        className="size-8 text-muted-foreground/30"
+      />
+      <p className="text-xs text-muted-foreground">{message}</p>
+    </div>
+  )
+}
+
+function NodesView({ nodes }: { nodes: ProxmoxNode[] }): React.ReactElement {
+  if (nodes.length === 0) {
+    return <EmptyState message="No nodes found" />
+  }
+
+  return (
+    <>
+      {nodes.map((node) => (
+        <div
+          key={node.id}
+          className="flex items-start gap-2.5 px-3 py-2.5 border-b border-border last:border-b-0"
+        >
+          <span
+            className={cn(
+              "mt-1 size-2 shrink-0 rounded-full",
+              node.status === "online" ? "bg-green-500" : "bg-red-500"
+            )}
+          />
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <div className="flex items-baseline justify-between">
+              <span className="truncate text-xs font-medium text-foreground">{node.name}</span>
+              <span className="shrink-0 text-[0.5625rem] text-muted-foreground">
+                {node.status === "online" ? formatUptime(node.uptime) : "offline"}
+              </span>
+            </div>
+            <UsageBar label="CPU" pct={node.cpuUsage} />
+            <UsageBar label="RAM" pct={node.memUsage} />
+            <span className="text-[0.5625rem] text-muted-foreground">
+              {formatBytes(node.memTotal)} total
+            </span>
+          </div>
+        </div>
+      ))}
+    </>
+  )
+}
+
+function GuestsView({ guests }: { guests: ProxmoxGuest[] }): React.ReactElement {
+  if (guests.length === 0) {
+    return <EmptyState message="No VMs or containers found" />
+  }
+
+  const sorted = [...guests].sort(
+    (a, b) => (GUEST_STATUS_ORDER[a.status] ?? 2) - (GUEST_STATUS_ORDER[b.status] ?? 2)
+  )
+
+  return (
+    <>
+      {sorted.map((guest) => (
+        <div
+          key={`${guest.node}-${guest.type}-${guest.vmid}`}
+          className="flex items-center gap-2.5 px-3 py-2.5 border-b border-border last:border-b-0"
+        >
+          <span
+            className={cn(
+              "shrink-0 rounded px-1 py-0.5 text-[0.5rem] font-semibold leading-none",
+              guest.type === "qemu"
+                ? "bg-blue-500/10 text-blue-500"
+                : "bg-purple-500/10 text-purple-500"
+            )}
+          >
+            {guest.type === "qemu" ? "VM" : "CT"}
+          </span>
+          <span
+            className={cn(
+              "size-2 shrink-0 rounded-full",
+              guest.status === "running"
+                ? "bg-green-500"
+                : guest.status === "paused"
+                  ? "bg-amber-500"
+                  : "bg-gray-400"
+            )}
+          />
+          <div className="flex min-w-0 flex-1 flex-col">
+            <div className="flex items-baseline gap-1.5">
+              <span className="truncate text-xs font-medium text-foreground">{guest.name}</span>
+              <span className="shrink-0 text-[0.5rem] text-muted-foreground">{guest.node}</span>
+            </div>
+            <span className="text-[0.5625rem] text-muted-foreground">
+              CPU {guest.cpuUsage.toFixed(0)}% | RAM {guest.memUsage.toFixed(0)}%
+            </span>
+          </div>
+        </div>
+      ))}
+    </>
+  )
+}
+
 export function ProxmoxWidget({
   widgetId,
   config,
 }: ProxmoxWidgetProps): React.ReactElement {
-  const serviceUrl = (config?.serviceUrl as string) ?? ""
-  const secretName = (config?.secretName as string) ?? ""
   const configured = isConfigured(config)
 
   const [nodes, setNodes] = useState<ProxmoxNode[]>([])
@@ -73,8 +212,12 @@ export function ProxmoxWidget({
   const [activeTab, setActiveTab] = useState<SectionTab>("nodes")
   const [showSettings, setShowSettings] = useState(false)
 
-  const [settingsServiceUrl, setSettingsServiceUrl] = useState(serviceUrl)
-  const [settingsSecretName, setSettingsSecretName] = useState(secretName)
+  const [settingsServiceUrl, setSettingsServiceUrl] = useState(
+    (config?.serviceUrl as string) ?? ""
+  )
+  const [settingsSecretName, setSettingsSecretName] = useState(
+    (config?.secretName as string) ?? ""
+  )
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -148,12 +291,6 @@ export function ProxmoxWidget({
     }
   }
 
-  // Sort guests: running first, then paused, then stopped
-  const sortedGuests = [...guests].sort((a, b) => {
-    const order: Record<string, number> = { running: 0, paused: 1, stopped: 2 }
-    return (order[a.status] ?? 2) - (order[b.status] ?? 2)
-  })
-
   if (showSettings || !configured) {
     return (
       <div className="flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden">
@@ -206,11 +343,7 @@ export function ProxmoxWidget({
 
           <Button
             onClick={handleSaveSettings}
-            disabled={
-              saving ||
-              !settingsServiceUrl.trim() ||
-              !settingsSecretName.trim()
-            }
+            disabled={saving || !settingsServiceUrl.trim() || !settingsSecretName.trim()}
             className="w-full"
             size="sm"
           >
@@ -223,7 +356,6 @@ export function ProxmoxWidget({
 
   return (
     <div className="flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden">
-      {/* Header */}
       <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
         <div className="flex items-center gap-1.5">
           <HugeiconsIcon
@@ -253,186 +385,31 @@ export function ProxmoxWidget({
         </Button>
       </div>
 
-      {/* Tab bar */}
       <div className="flex shrink-0 items-center gap-1 border-b border-border px-3 py-1.5">
-        <button
-          type="button"
-          onClick={() => setActiveTab("nodes")}
-          className={cn(
-            "rounded-full px-2 py-0.5 text-[0.625rem] font-medium transition-colors",
-            activeTab === "nodes"
-              ? "bg-primary/10 text-primary"
-              : "text-muted-foreground hover:text-foreground hover:bg-muted"
-          )}
-        >
-          Nodes
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("guests")}
-          className={cn(
-            "rounded-full px-2 py-0.5 text-[0.625rem] font-medium transition-colors",
-            activeTab === "guests"
-              ? "bg-primary/10 text-primary"
-              : "text-muted-foreground hover:text-foreground hover:bg-muted"
-          )}
-        >
-          Guests
-        </button>
+        {(["nodes", "guests"] as const).map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => setActiveTab(tab)}
+            className={cn(
+              "rounded-full px-2 py-0.5 text-[0.625rem] font-medium transition-colors capitalize",
+              activeTab === tab
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+            )}
+          >
+            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+          </button>
+        ))}
       </div>
 
-      {/* Content */}
       <div className="flex-1 overflow-y-auto">
         {loading ? (
-          <div>
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div
-                key={i}
-                className="flex items-center gap-3 px-3 py-2.5 border-b border-border"
-              >
-                <Skeleton className="size-2 shrink-0 rounded-full" />
-                <div className="flex-1 space-y-1.5">
-                  <Skeleton className="h-3 w-24" />
-                  <Skeleton className="h-1.5 w-full rounded-full" />
-                  <Skeleton className="h-1.5 w-full rounded-full" />
-                </div>
-                <Skeleton className="h-3 w-12" />
-              </div>
-            ))}
-          </div>
+          <LoadingSkeleton />
         ) : activeTab === "nodes" ? (
-          nodes.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center gap-2 py-6">
-              <HugeiconsIcon
-                icon={ComputerIcon}
-                strokeWidth={1.5}
-                className="size-8 text-muted-foreground/30"
-              />
-              <p className="text-xs text-muted-foreground">No nodes found</p>
-            </div>
-          ) : (
-            nodes.map((node) => (
-              <div
-                key={node.id}
-                className="flex items-start gap-2.5 px-3 py-2.5 border-b border-border last:border-b-0"
-              >
-                {/* Status dot */}
-                <span
-                  className={cn(
-                    "mt-1 size-2 shrink-0 rounded-full",
-                    node.status === "online" ? "bg-green-500" : "bg-red-500"
-                  )}
-                />
-                <div className="flex min-w-0 flex-1 flex-col gap-1">
-                  <div className="flex items-baseline justify-between">
-                    <span className="truncate text-xs font-medium text-foreground">
-                      {node.name}
-                    </span>
-                    <span className="shrink-0 text-[0.5625rem] text-muted-foreground">
-                      {node.status === "online"
-                        ? formatUptime(node.uptime)
-                        : "offline"}
-                    </span>
-                  </div>
-                  {/* CPU bar */}
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-7 shrink-0 text-[0.5625rem] text-muted-foreground">
-                      CPU
-                    </span>
-                    <div className="h-1.5 flex-1 rounded-full bg-muted">
-                      <div
-                        className={cn(
-                          "h-full rounded-full transition-all",
-                          usageColor(node.cpuUsage)
-                        )}
-                        style={{ width: `${Math.min(node.cpuUsage, 100)}%` }}
-                      />
-                    </div>
-                    <span className="w-8 shrink-0 text-right text-[0.5625rem] text-muted-foreground">
-                      {node.cpuUsage.toFixed(0)}%
-                    </span>
-                  </div>
-                  {/* Memory bar */}
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-7 shrink-0 text-[0.5625rem] text-muted-foreground">
-                      RAM
-                    </span>
-                    <div className="h-1.5 flex-1 rounded-full bg-muted">
-                      <div
-                        className={cn(
-                          "h-full rounded-full transition-all",
-                          usageColor(node.memUsage)
-                        )}
-                        style={{ width: `${Math.min(node.memUsage, 100)}%` }}
-                      />
-                    </div>
-                    <span className="w-8 shrink-0 text-right text-[0.5625rem] text-muted-foreground">
-                      {node.memUsage.toFixed(0)}%
-                    </span>
-                  </div>
-                  {/* Memory total */}
-                  <span className="text-[0.5625rem] text-muted-foreground">
-                    {formatBytes(node.memTotal)} total
-                  </span>
-                </div>
-              </div>
-            ))
-          )
-        ) : sortedGuests.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-2 py-6">
-            <HugeiconsIcon
-              icon={ComputerIcon}
-              strokeWidth={1.5}
-              className="size-8 text-muted-foreground/30"
-            />
-            <p className="text-xs text-muted-foreground">
-              No VMs or containers found
-            </p>
-          </div>
+          <NodesView nodes={nodes} />
         ) : (
-          sortedGuests.map((guest) => (
-            <div
-              key={`${guest.node}-${guest.type}-${guest.vmid}`}
-              className="flex items-center gap-2.5 px-3 py-2.5 border-b border-border last:border-b-0"
-            >
-              {/* Type badge */}
-              <span
-                className={cn(
-                  "shrink-0 rounded px-1 py-0.5 text-[0.5rem] font-semibold leading-none",
-                  guest.type === "qemu"
-                    ? "bg-blue-500/10 text-blue-500"
-                    : "bg-purple-500/10 text-purple-500"
-                )}
-              >
-                {guest.type === "qemu" ? "VM" : "CT"}
-              </span>
-              {/* Status dot */}
-              <span
-                className={cn(
-                  "size-2 shrink-0 rounded-full",
-                  guest.status === "running"
-                    ? "bg-green-500"
-                    : guest.status === "paused"
-                      ? "bg-amber-500"
-                      : "bg-gray-400"
-                )}
-              />
-              <div className="flex min-w-0 flex-1 flex-col">
-                <div className="flex items-baseline gap-1.5">
-                  <span className="truncate text-xs font-medium text-foreground">
-                    {guest.name}
-                  </span>
-                  <span className="shrink-0 text-[0.5rem] text-muted-foreground">
-                    {guest.node}
-                  </span>
-                </div>
-                <span className="text-[0.5625rem] text-muted-foreground">
-                  CPU {guest.cpuUsage.toFixed(0)}% | RAM{" "}
-                  {guest.memUsage.toFixed(0)}%
-                </span>
-              </div>
-            </div>
-          ))
+          <GuestsView guests={guests} />
         )}
       </div>
     </div>

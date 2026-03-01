@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+import type { IconSvgElement } from "@hugeicons/react"
 import {
   HomeWifiIcon,
   BulbIcon,
@@ -34,10 +35,7 @@ interface HomeAssistantWidgetProps {
   config: Record<string, unknown> | null
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type IconType = any
-
-const DOMAIN_ICONS: Record<string, IconType> = {
+const DOMAIN_ICONS: Record<string, IconSvgElement> = {
   light: BulbIcon,
   switch: ToggleOnIcon,
   fan: Fan01Icon,
@@ -51,7 +49,7 @@ const DOMAIN_ICONS: Record<string, IconType> = {
   automation: Plug01Icon,
 }
 
-function getDomainIcon(domain: string): IconType {
+function getDomainIcon(domain: string): IconSvgElement {
   return DOMAIN_ICONS[domain] ?? DashboardSpeed01Icon
 }
 
@@ -90,13 +88,9 @@ function isConfigured(config: Record<string, unknown> | null): boolean {
 }
 
 function parseEntityIds(config: Record<string, unknown> | null): string[] {
-  if (!config?.entityIds) return []
-  if (Array.isArray(config.entityIds)) {
-    return config.entityIds.filter(
-      (id): id is string => typeof id === "string" && id.length > 0
-    )
-  }
-  return []
+  const raw = config?.entityIds
+  if (!Array.isArray(raw)) return []
+  return raw.filter((id): id is string => typeof id === "string" && id.length > 0)
 }
 
 function entityIdsToText(ids: string[]): string {
@@ -110,29 +104,31 @@ function textToEntityIds(text: string): string[] {
     .filter((s) => s.length > 0)
 }
 
+const POLL_INTERVAL_MS = 15_000
+
 export function HomeAssistantWidget({
   widgetId,
   config,
 }: HomeAssistantWidgetProps): React.ReactElement {
-  const serviceUrl = (config?.serviceUrl as string) ?? ""
-  const secretName = (config?.secretName as string) ?? ""
-  const entityIds = parseEntityIds(config)
   const configured = isConfigured(config)
+  const entityIds = parseEntityIds(config)
 
   const [entities, setEntities] = useState<EntityState[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(configured)
   const [showSettings, setShowSettings] = useState(false)
   const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set())
 
-  // Settings state
-  const [settingsServiceUrl, setSettingsServiceUrl] = useState(serviceUrl)
-  const [settingsSecretName, setSettingsSecretName] = useState(secretName)
+  const [settingsServiceUrl, setSettingsServiceUrl] = useState(
+    (config?.serviceUrl as string) ?? ""
+  )
+  const [settingsSecretName, setSettingsSecretName] = useState(
+    (config?.secretName as string) ?? ""
+  )
   const [settingsEntityIds, setSettingsEntityIds] = useState(
     entityIdsToText(entityIds)
   )
   const [saving, setSaving] = useState(false)
 
-  // Sync settings from config when it changes
   useEffect(() => {
     setSettingsServiceUrl((config?.serviceUrl as string) ?? "")
     setSettingsSecretName((config?.secretName as string) ?? "")
@@ -140,10 +136,7 @@ export function HomeAssistantWidget({
   }, [config])
 
   const fetchEntities = useCallback(async () => {
-    if (!configured) {
-      setLoading(false)
-      return
-    }
+    if (!configured) return
 
     try {
       const params = new URLSearchParams({ widgetId })
@@ -164,20 +157,13 @@ export function HomeAssistantWidget({
   }, [widgetId, configured])
 
   useEffect(() => {
-    if (!configured) {
-      setLoading(false)
-      return
-    }
-
-    setLoading(true)
+    if (!configured) return
     fetchEntities()
-
-    const interval = setInterval(fetchEntities, 15_000)
+    const interval = setInterval(fetchEntities, POLL_INTERVAL_MS)
     return () => clearInterval(interval)
   }, [fetchEntities, configured])
 
   async function handleToggle(entity: EntityState) {
-    // Optimistic update
     setTogglingIds((prev) => new Set(prev).add(entity.entityId))
     setEntities((prev) =>
       prev.map((e) =>
@@ -200,7 +186,6 @@ export function HomeAssistantWidget({
       })
 
       if (!res.ok) {
-        // Revert optimistic update
         setEntities((prev) =>
           prev.map((e) =>
             e.entityId === entity.entityId ? { ...e, state: entity.state } : e
@@ -210,10 +195,8 @@ export function HomeAssistantWidget({
         return
       }
 
-      // Re-fetch to get actual state
       await fetchEntities()
     } catch {
-      // Revert optimistic update
       setEntities((prev) =>
         prev.map((e) =>
           e.entityId === entity.entityId ? { ...e, state: entity.state } : e
@@ -257,7 +240,6 @@ export function HomeAssistantWidget({
     }
   }
 
-  // Settings view
   if (showSettings || !configured) {
     return (
       <div className="flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden">
@@ -340,7 +322,6 @@ export function HomeAssistantWidget({
     )
   }
 
-  // Main display
   return (
     <div className="flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden">
       <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
@@ -420,9 +401,7 @@ export function HomeAssistantWidget({
                 strokeWidth={2}
                 className={cn(
                   "size-4 shrink-0",
-                  entity.state === "on"
-                    ? "text-amber-500"
-                    : "text-muted-foreground"
+                  entity.state === "on" ? "text-amber-500" : "text-muted-foreground"
                 )}
               />
 
@@ -463,9 +442,7 @@ export function HomeAssistantWidget({
                     strokeWidth={2}
                     className={cn(
                       "size-3.5",
-                      entity.state === "on"
-                        ? "text-green-500"
-                        : "text-muted-foreground"
+                      entity.state === "on" ? "text-green-500" : "text-muted-foreground"
                     )}
                   />
                 </Button>

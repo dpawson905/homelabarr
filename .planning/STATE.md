@@ -5,13 +5,13 @@
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** A visually polished, fully customizable dashboard that looks and feels better than Homarr, with the same depth of service integrations and drag-and-drop widget management.
-**Current focus:** Phase 7 — System & Docker Widgets
+**Current focus:** Phase 10 — Polish & Export
 
 ## Current Position
 
-Phase: 7 of 10 (System & Docker Widgets)
+Phase: 10 of 10 (Polish & Export)
 Status: Ready to plan
-Last activity: 2026-03-01 — Phase 6 executed successfully
+Last activity: 2026-03-01 — Phase 9 executed successfully
 
 ## Preferences
 
@@ -62,9 +62,13 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - CalendarWidget: events stored in widgetConfigs JSON, agenda view with date grouping, inline add/edit form
 - RssWidget: server-side feed parsing via rss-parser at /api/widgets/rss, multi-feed aggregation, 5-min API cache
 
+- Phase 7: System stats widget (CPU/RAM/disk/network via os module), Docker widget (container list/start/stop/restart via dockerode/ssh2)
+- Phase 8: Shared service client (fetchService, resolveSecret, getServiceConnection) with ServiceAuthType union (4 auth patterns). Media server (Plex/Jellyfin), media management (Sonarr/Radarr), download client (qBittorrent/SABnzbd), media requests (Overseerr/Jellyseerr) widgets.
+- Phase 9: Extended ServiceAuthType with 4 new patterns (query-auth, header-basic-auth, header-bearer, header-pve-token). DNS (Pi-hole/AdGuard), Proxmox (nodes/VMs/containers), Home Assistant (entity states + toggle controls), Uptime Kuma (status page + Prometheus metrics) widgets. Total: 17 widget types registered.
+
 ### Blockers/Concerns
 
 None yet.
 
 ---
-*Last updated: 2026-03-01 — Phase 6 complete*
+*Last updated: 2026-03-01 — Phase 9 complete*

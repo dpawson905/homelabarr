@@ -11,7 +11,6 @@ interface HaStateRaw {
     [key: string]: unknown
   }
   last_changed: string
-  last_updated: string
 }
 
 const CONTROLLABLE_DOMAINS = new Set([
@@ -27,13 +26,19 @@ function mapEntity(raw: HaStateRaw): EntityState {
   const domain = raw.entity_id.split(".")[0]
   return {
     entityId: raw.entity_id,
-    friendlyName: raw.attributes?.friendly_name ?? raw.entity_id,
+    friendlyName: raw.attributes.friendly_name ?? raw.entity_id,
     state: raw.state,
     domain,
     lastChanged: raw.last_changed,
     attributes: raw.attributes,
     controllable: CONTROLLABLE_DOMAINS.has(domain),
   }
+}
+
+function resolveEntityIds(config: Record<string, unknown> | null): string[] {
+  const raw = config?.entityIds
+  if (!Array.isArray(raw)) return []
+  return raw.filter((id): id is string => typeof id === "string")
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -78,23 +83,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     )
   }
 
-  const rawStates = statesResult.data ?? []
-
-  const entityIdsRaw = config?.entityIds
-  const entityIds: string[] = Array.isArray(entityIdsRaw)
-    ? entityIdsRaw.filter((id): id is string => typeof id === "string")
-    : []
+  const entityIds = resolveEntityIds(config)
 
   let entities: EntityState[]
 
   if (entityIds.length === 0) {
     // No configured entities -- return first 20 so user can see what's available
-    entities = rawStates.slice(0, 20).map(mapEntity)
+    entities = statesResult.data.slice(0, 20).map(mapEntity)
   } else {
     const idSet = new Set(entityIds)
-    entities = rawStates
-      .filter((raw) => idSet.has(raw.entity_id))
-      .map(mapEntity)
+    entities = statesResult.data.filter((raw) => idSet.has(raw.entity_id)).map(mapEntity)
   }
 
   const response: HomeAssistantResponse = { entities }
@@ -136,10 +134,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     body = (await request.json()) as ServiceCallRequest
   } catch {
-    return NextResponse.json(
-      { error: "Invalid request body" },
-      { status: 400 }
-    )
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
   }
 
   const { entityId, domain, service } = body
