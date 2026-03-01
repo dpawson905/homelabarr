@@ -19,6 +19,15 @@ const WIDGET_TYPES = [
   { type: "notes", name: "Notes", description: "Jot down quick notes" },
   { type: "calendar", name: "Calendar", description: "Track upcoming events and deadlines" },
   { type: "rss-feed", name: "RSS Feed", description: "Follow your favorite feeds" },
+  { type: "docker", name: "Docker", description: "Monitor running containers" },
+  { type: "media-server", name: "Media Server", description: "Now playing and recently added media" },
+  { type: "media-management", name: "Media Management", description: "Sonarr/Radarr calendar and queue" },
+  { type: "download-client", name: "Download Client", description: "Active downloads and transfer stats" },
+  { type: "media-requests", name: "Media Requests", description: "Overseerr/Jellyseerr media requests" },
+  { type: "dns", name: "DNS/Ad-Block", description: "DNS stats from Pi-hole or AdGuard Home" },
+  { type: "proxmox", name: "Proxmox", description: "VM and container status from Proxmox VE" },
+  { type: "home-assistant", name: "Home Assistant", description: "Smart home entity states and controls" },
+  { type: "uptime-kuma", name: "Uptime Kuma", description: "Service monitor status and uptime" },
 ]
 
 const WIDGET_DEFAULT_SIZES: Record<string, { w: number; h: number }> = {
@@ -28,6 +37,16 @@ const WIDGET_DEFAULT_SIZES: Record<string, { w: number; h: number }> = {
   weather: { w: 3, h: 3 },
   calendar: { w: 3, h: 4 },
   "rss-feed": { w: 4, h: 4 },
+  "system-stats": { w: 3, h: 3 },
+  docker: { w: 4, h: 4 },
+  "download-client": { w: 4, h: 3 },
+  "media-server": { w: 4, h: 4 },
+  "media-management": { w: 4, h: 4 },
+  "media-requests": { w: 3, h: 4 },
+  dns: { w: 3, h: 3 },
+  proxmox: { w: 4, h: 4 },
+  "home-assistant": { w: 3, h: 4 },
+  "uptime-kuma": { w: 3, h: 4 },
 }
 
 interface AddWidgetDialogProps {

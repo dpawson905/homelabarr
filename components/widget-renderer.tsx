@@ -8,6 +8,16 @@ import { NotesWidget } from "@/components/widgets/notes-widget"
 import { WeatherWidget } from "@/components/widgets/weather-widget"
 import { CalendarWidget } from "@/components/widgets/calendar-widget"
 import { RssWidget } from "@/components/widgets/rss-widget"
+import { SystemStatsWidget } from "@/components/widgets/system-stats-widget"
+import { DockerWidget } from "@/components/widgets/docker-widget"
+import { MediaServerWidget } from "@/components/widgets/media-server-widget"
+import { MediaManagementWidget } from "@/components/widgets/media-management-widget"
+import { DownloadClientWidget } from "@/components/widgets/download-client-widget"
+import { MediaRequestsWidget } from "@/components/widgets/media-requests-widget"
+import { DnsWidget } from "@/components/widgets/dns-widget"
+import { ProxmoxWidget } from "@/components/widgets/proxmox-widget"
+import { HomeAssistantWidget } from "@/components/widgets/home-assistant-widget"
+import { UptimeKumaWidget } from "@/components/widgets/uptime-kuma-widget"
 
 interface WidgetRendererProps {
   type: string
@@ -31,6 +41,26 @@ export function WidgetRenderer({ type, widgetId, config }: WidgetRendererProps):
       return <CalendarWidget widgetId={widgetId} config={config ?? null} />
     case "rss-feed":
       return <RssWidget widgetId={widgetId} config={config ?? null} />
+    case "system-stats":
+      return <SystemStatsWidget widgetId={widgetId} config={config ?? null} />
+    case "docker":
+      return <DockerWidget widgetId={widgetId} config={config ?? null} />
+    case "media-server":
+      return <MediaServerWidget widgetId={widgetId} config={config ?? null} />
+    case "media-management":
+      return <MediaManagementWidget widgetId={widgetId} config={config ?? null} />
+    case "download-client":
+      return <DownloadClientWidget widgetId={widgetId} config={config ?? null} />
+    case "media-requests":
+      return <MediaRequestsWidget widgetId={widgetId} config={config ?? null} />
+    case "dns":
+      return <DnsWidget widgetId={widgetId} config={config ?? null} />
+    case "proxmox":
+      return <ProxmoxWidget widgetId={widgetId} config={config ?? null} />
+    case "home-assistant":
+      return <HomeAssistantWidget widgetId={widgetId} config={config ?? null} />
+    case "uptime-kuma":
+      return <UptimeKumaWidget widgetId={widgetId} config={config ?? null} />
     default:
       return <WidgetPlaceholder type={type} />
   }
