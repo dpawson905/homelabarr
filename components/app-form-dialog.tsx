@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { AppIcon } from "@/components/app-icon"
+import { IconPickerDialog } from "@/components/icon-picker-dialog"
 import type { App } from "@/lib/db/schema"
 
 interface AppFormDialogProps {
@@ -33,6 +35,7 @@ export function AppFormDialog({ open, onOpenChange, onSaved, app }: AppFormDialo
   const [statusCheckInterval, setStatusCheckInterval] = useState(300)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [iconPickerOpen, setIconPickerOpen] = useState(false)
 
   useEffect(() => {
     if (open) {
@@ -152,13 +155,30 @@ export function AppFormDialog({ open, onOpenChange, onSaved, app }: AppFormDialo
             </div>
 
             <div className="grid gap-1.5">
-              <Label htmlFor="app-icon">Icon (optional)</Label>
-              <Input
-                id="app-icon"
-                value={icon}
-                onChange={(e) => setIcon(e.target.value)}
-                placeholder="Emoji or icon name"
-              />
+              <Label>Icon (optional)</Label>
+              <div className="flex items-center gap-2">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border bg-muted/30">
+                  <AppIcon icon={icon || null} appName={name || "App"} size={20} />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIconPickerOpen(true)}
+                >
+                  {icon ? "Change Icon" : "Choose Icon"}
+                </Button>
+                {icon && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIcon("")}
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
             </div>
 
             <div className="grid gap-1.5">
@@ -206,6 +226,13 @@ export function AppFormDialog({ open, onOpenChange, onSaved, app }: AppFormDialo
             </Button>
           </DialogFooter>
         </form>
+
+        <IconPickerDialog
+          open={iconPickerOpen}
+          onOpenChange={setIconPickerOpen}
+          onSelect={setIcon}
+          currentIcon={icon || null}
+        />
       </DialogContent>
     </Dialog>
   )
