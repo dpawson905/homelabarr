@@ -34,15 +34,17 @@ import {
   Delete02Icon,
 } from "@hugeicons/core-free-icons"
 import type { Board } from "@/lib/db"
-import { CreateBoardDialog } from "@/components/board-dialogs"
-import { RenameBoardDialog } from "@/components/board-dialogs"
-import { DeleteBoardDialog } from "@/components/board-dialogs"
+import {
+  CreateBoardDialog,
+  RenameBoardDialog,
+  DeleteBoardDialog,
+} from "@/components/board-dialogs"
 
 const GROUP_LABEL_CLASS = "uppercase tracking-widest text-[0.65rem] font-semibold"
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
-  boards: Board[];
-  activeBoardId: string;
+  boards: Board[]
+  activeBoardId: string
 }
 
 export function AppSidebar({ boards, activeBoardId, ...props }: AppSidebarProps) {
@@ -126,9 +128,11 @@ export function AppSidebar({ boards, activeBoardId, ...props }: AppSidebarProps)
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton tooltip="Settings">
-                  <HugeiconsIcon icon={Settings02Icon} strokeWidth={2} />
-                  <span>Settings</span>
+                <SidebarMenuButton asChild tooltip="Settings">
+                  <Link href="/settings">
+                    <HugeiconsIcon icon={Settings02Icon} strokeWidth={2} />
+                    <span>Settings</span>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
