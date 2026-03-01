@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { PencilEdit01Icon, Delete02Icon } from "@hugeicons/core-free-icons"
+import { AppIcon } from "@/components/app-icon"
 import type { App } from "@/lib/db/schema"
 import type { HealthCheckResult } from "@/lib/health-check"
 
@@ -97,13 +98,7 @@ export function AppCard({ app, onEdit, onDeleted, health }: AppCardProps): React
       </div>
 
       <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted/50 text-lg">
-        {app.icon?.trim() ? (
-          <span>{app.icon}</span>
-        ) : (
-          <span className="text-sm font-semibold text-muted-foreground">
-            {app.name.charAt(0).toUpperCase()}
-          </span>
-        )}
+        <AppIcon icon={app.icon} appName={app.name} size={20} />
       </div>
 
       <span className="w-full truncate text-center text-xs font-medium text-foreground">
