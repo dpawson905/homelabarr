@@ -1,18 +1,23 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { PlusSignIcon, Link04Icon } from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"
 import { AppCard } from "@/components/widgets/app-card"
 import { AppFormDialog } from "@/components/app-form-dialog"
 import type { App } from "@/lib/db/schema"
+import type { HealthCheckResult } from "@/lib/health-check"
 
-export function AppLinksWidget() {
+const HEALTH_POLL_INTERVAL_MS = 60_000
+
+export function AppLinksWidget(): React.ReactElement {
   const [apps, setApps] = useState<App[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingApp, setEditingApp] = useState<App | null>(null)
+  const [healthStatuses, setHealthStatuses] = useState<Record<string, HealthCheckResult>>({})
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const fetchApps = useCallback(async () => {
     try {
@@ -30,9 +35,37 @@ export function AppLinksWidget() {
     }
   }, [])
 
+  const fetchHealth = useCallback(async () => {
+    try {
+      const res = await fetch("/api/apps/health")
+      if (!res.ok) return
+      const data = await res.json()
+      if (data.statuses) {
+        setHealthStatuses(data.statuses)
+      }
+    } catch {
+      // Silently ignore health fetch failures
+    }
+  }, [])
+
   useEffect(() => {
     fetchApps()
   }, [fetchApps])
+
+  // After apps are loaded, fetch health immediately and start polling
+  useEffect(() => {
+    if (apps.length === 0) return
+
+    fetchHealth()
+
+    intervalRef.current = setInterval(fetchHealth, HEALTH_POLL_INTERVAL_MS)
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
+    }
+  }, [apps.length, fetchHealth])
 
   function handleAddClick() {
     setEditingApp(null)
@@ -44,17 +77,8 @@ export function AppLinksWidget() {
     setDialogOpen(true)
   }
 
-  function handleSaved() {
-    fetchApps()
-  }
-
-  function handleDeleted() {
-    fetchApps()
-  }
-
   return (
     <div className="flex h-full w-full flex-col rounded-lg border border-border bg-card">
-      {/* Header */}
       <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
         <div className="flex items-center gap-1.5">
           <HugeiconsIcon
@@ -69,7 +93,6 @@ export function AppLinksWidget() {
         </Button>
       </div>
 
-      {/* Content */}
       <div className="flex-1 overflow-y-auto p-2">
         {loading ? (
           <div className="flex h-full items-center justify-center">
@@ -95,18 +118,18 @@ export function AppLinksWidget() {
                 key={app.id}
                 app={app}
                 onEdit={handleEditClick}
-                onDeleted={handleDeleted}
+                onDeleted={fetchApps}
+                health={healthStatuses[app.id]}
               />
             ))}
           </div>
         )}
       </div>
 
-      {/* Form Dialog */}
       <AppFormDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        onSaved={handleSaved}
+        onSaved={fetchApps}
         app={editingApp}
       />
     </div>

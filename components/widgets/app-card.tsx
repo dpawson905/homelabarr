@@ -4,14 +4,38 @@ import { useState } from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { PencilEdit01Icon, Delete02Icon } from "@hugeicons/core-free-icons"
 import type { App } from "@/lib/db/schema"
+import type { HealthCheckResult } from "@/lib/health-check"
 
 interface AppCardProps {
   app: App
   onEdit: (app: App) => void
   onDeleted: () => void
+  health?: HealthCheckResult
 }
 
-export function AppCard({ app, onEdit, onDeleted }: AppCardProps) {
+function getStatusDotClasses(status?: HealthCheckResult["status"]): string {
+  switch (status) {
+    case "online":
+      return "bg-emerald-500 animate-pulse"
+    case "offline":
+      return "bg-red-500"
+    case "degraded":
+      return "bg-amber-500"
+    default:
+      return "bg-muted-foreground/30"
+  }
+}
+
+function getStatusTitle(health?: HealthCheckResult): string {
+  if (!health) return "Status unknown"
+  const label = health.status.charAt(0).toUpperCase() + health.status.slice(1)
+  if (health.latency > 0) {
+    return `${label} - ${health.latency}ms`
+  }
+  return label
+}
+
+export function AppCard({ app, onEdit, onDeleted, health }: AppCardProps): React.ReactElement {
   const [deleting, setDeleting] = useState(false)
 
   async function handleDelete(e: React.MouseEvent) {
@@ -41,8 +65,6 @@ export function AppCard({ app, onEdit, onDeleted }: AppCardProps) {
     onEdit(app)
   }
 
-  const hasIcon = app.icon && app.icon.trim().length > 0
-
   return (
     <a
       href={app.url}
@@ -50,7 +72,6 @@ export function AppCard({ app, onEdit, onDeleted }: AppCardProps) {
       rel="noopener noreferrer"
       className="group/card relative flex flex-col items-center gap-1.5 rounded-lg border border-border bg-card p-3 transition-colors hover:bg-accent/50"
     >
-      {/* Action buttons - visible on hover */}
       <div className="absolute top-1 right-1 flex gap-0.5 opacity-0 transition-opacity group-hover/card:opacity-100">
         <button
           type="button"
@@ -71,14 +92,15 @@ export function AppCard({ app, onEdit, onDeleted }: AppCardProps) {
         </button>
       </div>
 
-      {/* Status indicator dot */}
-      <div className="absolute top-1.5 left-1.5">
-        <span className="block size-2 rounded-full bg-muted-foreground/30" />
+      <div className="absolute bottom-1.5 right-1.5">
+        <span
+          className={`block size-2.5 rounded-full ring-1 ring-background ${getStatusDotClasses(health?.status)}`}
+          title={getStatusTitle(health)}
+        />
       </div>
 
-      {/* Icon or avatar */}
       <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted/50 text-lg">
-        {hasIcon ? (
+        {app.icon?.trim() ? (
           <span>{app.icon}</span>
         ) : (
           <span className="text-sm font-semibold text-muted-foreground">
@@ -87,12 +109,10 @@ export function AppCard({ app, onEdit, onDeleted }: AppCardProps) {
         )}
       </div>
 
-      {/* Name */}
       <span className="w-full truncate text-center text-xs font-medium text-foreground">
         {app.name}
       </span>
 
-      {/* Description */}
       {app.description && (
         <span className="w-full truncate text-center text-[0.625rem] text-muted-foreground">
           {app.description}
