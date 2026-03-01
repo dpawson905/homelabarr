@@ -152,10 +152,29 @@
   }
 }
 
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* ─── react-grid-layout overrides ──────────────────────────────────────────── */
+
+.react-grid-item.react-grid-placeholder {
+  background: oklch(from var(--primary) l c h / 15%);
+  border: 2px dashed var(--primary);
+  border-radius: var(--radius-lg);
+  box-shadow: none;
+}
+
+.react-grid-item > .react-resizable-handle::after {
+  border-color: var(--muted-foreground);
+}
+
+.react-grid-item.react-draggable-dragging {
+  opacity: 0.8;
+  box-shadow: 0 8px 25px -5px oklch(from var(--primary) l c h / 20%),
+    0 4px 10px -6px oklch(from var(--primary) l c h / 10%);
 }
