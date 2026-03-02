@@ -1,0 +1,15 @@
+services:
+  homelabarr:
+    build: .
+    container_name: homelabarr
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      # Uncomment and set to persist encryption key across rebuilds:
+      # - ENCRYPTION_SECRET=change-me-to-a-long-random-string
