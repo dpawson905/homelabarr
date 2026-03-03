@@ -95,21 +95,73 @@ Migrations run automatically on startup — no manual steps needed.
 ### Setup
 
 ```bash
+# 1. Clone the repo
+git clone https://github.com/your-username/homelabarr.git
+cd homelabarr
+
+# 2. Install dependencies
 npm install
-npm run db:setup   # creates DB, runs migrations, seeds a default board
+
+# 3. Initialize the database (creates ./data/homelabarr.db, runs migrations, seeds a default board)
+npm run db:setup
+
+# 4. Start the dev server
 npm run dev
 ```
 
 Open **http://localhost:3000**.
 
+> **No `.env` file needed.** There are no required environment variables for local development. The SQLite database and encryption key are auto-created in `./data/` on first run.
+
+### Project structure
+
+```
+app/                  Next.js App Router pages and API routes
+  api/widgets/        One folder per widget type (server-side data fetching)
+  board/[id]/         Board page and layout
+  settings/           Settings page
+components/
+  widgets/            React widget components
+  ui/                 Shared UI primitives (shadcn)
+lib/
+  db/                 Drizzle ORM schema, queries, and DB connection
+  crypto/             AES-256-GCM secret encryption
+  services/           HTTP client for homelab services (TLS-tolerant)
+drizzle/              SQL migration files
+```
+
 ### Database commands
 
 | Command | Description |
 |---|---|
-| `npm run db:generate` | Generate migration files from schema changes |
-| `npm run db:migrate` | Apply pending migrations |
-| `npm run db:seed` | Seed a default board (skips if already seeded) |
-| `npm run db:studio` | Open Drizzle Studio to browse the DB |
+| `npm run db:setup` | Generate + migrate + seed (run once after cloning) |
+| `npm run db:generate` | Generate a new migration file after editing `lib/db/schema.ts` |
+| `npm run db:migrate` | Apply pending migrations to the local DB |
+| `npm run db:seed` | Seed a default board (no-op if one already exists) |
+| `npm run db:studio` | Open Drizzle Studio in the browser to inspect the DB |
+
+### Making schema changes
+
+1. Edit `lib/db/schema.ts`
+2. Run `npm run db:generate` to create a new migration file in `drizzle/`
+3. Run `npm run db:migrate` to apply it locally
+4. Commit both the schema change and the generated migration file
+
+### Adding a new widget
+
+Each widget is made up of:
+
+| File | Purpose |
+|---|---|
+| `components/widgets/{type}-widget.tsx` | React component |
+| `app/api/widgets/{type}/route.ts` | Server-side API route |
+| `app/api/widgets/{type}/types.ts` | Response type interfaces |
+
+After creating those files, register the widget in:
+- `components/widget-renderer.tsx` — add a `case` for the new type
+- `components/add-widget-dialog.tsx` — add to `WIDGET_CATEGORIES` and `WIDGET_DEFAULT_SIZES`
+
+Use an existing widget (e.g. `dns`, `uptime-kuma`) as a reference for the pattern.
 
 ---
 
