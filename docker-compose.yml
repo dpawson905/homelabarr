@@ -1,6 +1,8 @@
 services:
   homelabarr:
-    build: .
+    image: ghcr.io/dpawson905/homelabarr:latest
+    # To build from source instead, comment out 'image' above and uncomment:
+    # build: .
     container_name: homelabarr
     restart: unless-stopped
     ports:
