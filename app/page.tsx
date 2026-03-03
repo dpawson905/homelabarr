@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation"
 import { getDefaultBoardId } from "@/lib/db/queries"
 
+export const dynamic = "force-dynamic"
+
 export default function Page() {
   const defaultBoardId = getDefaultBoardId()
 
