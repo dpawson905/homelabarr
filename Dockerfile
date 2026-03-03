@@ -22,10 +22,6 @@ ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
-# Create non-root user
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nextjs
-
 # Copy Next.js standalone server
 COPY --from=builder /app/.next/standalone ./
 # Copy static assets into the right place for the standalone server
@@ -43,10 +39,6 @@ COPY --from=builder /app/entrypoint.sh ./entrypoint.sh
 COPY --from=builder /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
 COPY --from=builder /app/node_modules/bindings ./node_modules/bindings
 COPY --from=builder /app/node_modules/file-uri-to-path ./node_modules/file-uri-to-path
-
-RUN chown -R nextjs:nodejs /app
-
-USER nextjs
 
 EXPOSE 3000
 
