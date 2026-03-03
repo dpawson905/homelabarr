@@ -19,11 +19,29 @@ A self-hosted homelab dashboard built with Next.js. Monitor your services, manag
 - Docker with Compose v2 (`docker compose`)
 - The machine running the container must have Docker installed (for the Docker widget)
 
-### Quick start
+### Quick start (pre-built image)
 
 ```bash
-git clone https://github.com/your-username/homelabarr.git
-cd homelabarr
+mkdir homelabarr && cd homelabarr
+
+# Create a docker-compose.yml (or copy the one below)
+cat <<'EOF' > docker-compose.yml
+services:
+  homelabarr:
+    image: ghcr.io/dpawson905/homelabarr:latest
+    container_name: homelabarr
+    restart: unless-stopped
+    ports:
+      - "3575:3575"
+    volumes:
+      - ./data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - NODE_ENV=production
+      - PORT=3575
+      # - ENCRYPTION_SECRET=change-me-to-a-long-random-string
+EOF
+
 docker compose up -d
 ```
 
@@ -31,14 +49,45 @@ Open **http://your-server-ip:3575** in your browser.
 
 Data is stored in `./data/` on the host — it persists across container restarts and upgrades.
 
+### Quick start (build from source)
+
+```bash
+git clone https://github.com/dpawson905/homelabarr.git
+cd homelabarr
+docker compose up -d
+```
+
 ### Portainer (Stack)
 
 1. In Portainer, go to **Stacks → Add stack**
-2. Choose **Repository** and point it at your clone, or paste the contents of `docker-compose.yml` directly
-3. Deploy the stack
-4. Access the dashboard at **http://your-server-ip:3575**
+2. Choose **Repository** and point it at your repo, or paste a `docker-compose.yml` directly
+3. To use the pre-built image, replace `build: .` with `image: ghcr.io/dpawson905/homelabarr:latest`
+4. Deploy the stack
+5. Access the dashboard at **http://your-server-ip:3575**
 
 ### docker-compose.yml
+
+**Pre-built image (recommended):**
+
+```yaml
+services:
+  homelabarr:
+    image: ghcr.io/dpawson905/homelabarr:latest
+    container_name: homelabarr
+    restart: unless-stopped
+    ports:
+      - "3575:3575"
+    volumes:
+      - ./data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - NODE_ENV=production
+      - PORT=3575
+      # Uncomment and set to persist encryption key across rebuilds:
+      # - ENCRYPTION_SECRET=change-me-to-a-long-random-string
+```
+
+**Build from source:**
 
 ```yaml
 services:
@@ -74,6 +123,15 @@ services:
 | `/var/run/docker.sock` | `/var/run/docker.sock` | Docker widget host access |
 
 ### Upgrading
+
+**Pre-built image:**
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+**Build from source:**
 
 ```bash
 git pull
