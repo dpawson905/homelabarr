@@ -19,7 +19,7 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=3575
 ENV HOSTNAME=0.0.0.0
 
 # Copy Next.js standalone server
@@ -40,6 +40,6 @@ COPY --from=builder /app/node_modules/better-sqlite3 ./node_modules/better-sqlit
 COPY --from=builder /app/node_modules/bindings ./node_modules/bindings
 COPY --from=builder /app/node_modules/file-uri-to-path ./node_modules/file-uri-to-path
 
-EXPOSE 3000
+EXPOSE 3575
 
 ENTRYPOINT ["/bin/sh", "/app/entrypoint.sh"]
