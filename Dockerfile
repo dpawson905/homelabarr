@@ -9,6 +9,8 @@ RUN npm ci
 
 # Copy source and build
 COPY . .
+# Pre-create a minimal DB so Next.js build workers don't race on SQLite init
+RUN mkdir -p data && node -e "const D=require('better-sqlite3');const d=new D('./data/homelabarr.db');d.pragma('journal_mode=WAL');d.close();"
 RUN npm run build
 
 # ── Stage 2: runner ───────────────────────────────────────────────────────────
