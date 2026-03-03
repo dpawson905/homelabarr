@@ -1,9 +1,10 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { HugeiconsIcon } from "@hugeicons/react"
-import { Clock01Icon, Settings02Icon } from "@hugeicons/core-free-icons"
+import { Clock01Icon } from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"
+import { WidgetHeader } from "@/components/widget-header"
+import { DeleteWidgetButton } from "@/components/delete-widget-button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
@@ -21,6 +22,7 @@ const LOCAL_TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone
 interface ClockWidgetProps {
   widgetId: string
   config: Record<string, unknown> | null
+  onDelete?: () => void
 }
 
 function formatTime(date: Date, timezone: string, format: "12h" | "24h", showSeconds: boolean): string {
@@ -51,7 +53,7 @@ function formatDate(date: Date, timezone: string): string {
   }
 }
 
-export function ClockWidget({ widgetId, config }: ClockWidgetProps): React.ReactElement {
+export function ClockWidget({ widgetId, config, onDelete }: ClockWidgetProps): React.ReactElement {
   const [now, setNow] = useState<Date>(new Date())
   const [showSettings, setShowSettings] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -97,24 +99,11 @@ export function ClockWidget({ widgetId, config }: ClockWidgetProps): React.React
   return (
     <div className="h-full w-full flex flex-col rounded-lg border border-border bg-card">
       {/* Header */}
-      <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
-        <div className="flex items-center gap-1.5">
-          <HugeiconsIcon
-            icon={Clock01Icon}
-            strokeWidth={2}
-            className="size-3.5 text-muted-foreground"
-          />
-          <span className="text-xs font-medium text-foreground">Clock</span>
-        </div>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          onClick={() => setShowSettings((s) => !s)}
-          aria-label="Clock settings"
-        >
-          <HugeiconsIcon icon={Settings02Icon} strokeWidth={2} />
-        </Button>
-      </div>
+      <WidgetHeader
+        icon={Clock01Icon}
+        title="Clock"
+        onSettingsClick={() => setShowSettings((s) => !s)}
+      />
 
       {/* Settings panel */}
       {showSettings ? (
@@ -174,6 +163,7 @@ export function ClockWidget({ widgetId, config }: ClockWidgetProps): React.React
           <Button size="sm" onClick={handleSave} disabled={saving}>
             {saving ? "Saving..." : "Save"}
           </Button>
+          {onDelete && <DeleteWidgetButton onConfirm={onDelete} />}
         </div>
       ) : null}
 

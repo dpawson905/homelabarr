@@ -14,10 +14,12 @@ import {
   ThermometerIcon,
   DashboardSpeed01Icon,
   Camera01Icon,
-  Settings02Icon,
   Plug01Icon,
+  Settings02Icon,
 } from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"
+import { WidgetHeader } from "@/components/widget-header"
+import { DeleteWidgetButton } from "@/components/delete-widget-button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -33,6 +35,7 @@ import type {
 interface HomeAssistantWidgetProps {
   widgetId: string
   config: Record<string, unknown> | null
+  onDelete?: () => void
 }
 
 const DOMAIN_ICONS: Record<string, IconSvgElement> = {
@@ -109,30 +112,38 @@ const POLL_INTERVAL_MS = 15_000
 export function HomeAssistantWidget({
   widgetId,
   config,
+  onDelete,
 }: HomeAssistantWidgetProps): React.ReactElement {
-  const configured = isConfigured(config)
-  const entityIds = parseEntityIds(config)
+  const [savedConfig, setSavedConfig] = useState({
+    serviceUrl: (config?.serviceUrl as string) ?? "",
+    secretName: (config?.secretName as string) ?? "",
+    entityIds: parseEntityIds(config),
+  })
+  const configured = !!savedConfig.serviceUrl && !!savedConfig.secretName
 
   const [entities, setEntities] = useState<EntityState[]>([])
   const [loading, setLoading] = useState(configured)
+  const [error, setError] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
   const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set())
 
-  const [settingsServiceUrl, setSettingsServiceUrl] = useState(
-    (config?.serviceUrl as string) ?? ""
-  )
-  const [settingsSecretName, setSettingsSecretName] = useState(
-    (config?.secretName as string) ?? ""
-  )
+  const [settingsServiceUrl, setSettingsServiceUrl] = useState(savedConfig.serviceUrl)
+  const [settingsSecretName, setSettingsSecretName] = useState(savedConfig.secretName)
   const [settingsEntityIds, setSettingsEntityIds] = useState(
-    entityIdsToText(entityIds)
+    entityIdsToText(savedConfig.entityIds)
   )
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    setSettingsServiceUrl((config?.serviceUrl as string) ?? "")
-    setSettingsSecretName((config?.secretName as string) ?? "")
-    setSettingsEntityIds(entityIdsToText(parseEntityIds(config)))
+    const incoming = {
+      serviceUrl: (config?.serviceUrl as string) ?? "",
+      secretName: (config?.secretName as string) ?? "",
+      entityIds: parseEntityIds(config),
+    }
+    setSavedConfig(incoming)
+    setSettingsServiceUrl(incoming.serviceUrl)
+    setSettingsSecretName(incoming.secretName)
+    setSettingsEntityIds(entityIdsToText(incoming.entityIds))
   }, [config])
 
   const fetchEntities = useCallback(async () => {
@@ -143,14 +154,18 @@ export function HomeAssistantWidget({
       const res = await fetch(`/api/widgets/home-assistant?${params}`)
 
       if (!res.ok) {
-        console.warn("Failed to fetch HA entities:", await res.text())
+        const body = await res.json().catch(() => ({ error: "Unknown error" }))
+        setError(body.error ?? `Error ${res.status}`)
+        setEntities([])
         return
       }
 
       const data: HomeAssistantResponse = await res.json()
       setEntities(data.entities)
-    } catch (error) {
-      console.warn("Failed to fetch HA entities:", error)
+      setError(null)
+    } catch {
+      setError("Failed to connect")
+      setEntities([])
     } finally {
       setLoading(false)
     }
@@ -232,7 +247,13 @@ export function HomeAssistantWidget({
         return
       }
 
+      setSavedConfig({
+        serviceUrl: settingsServiceUrl,
+        secretName: settingsSecretName,
+        entityIds: textToEntityIds(settingsEntityIds),
+      })
       setShowSettings(false)
+      setLoading(true)
     } catch {
       toast.error("Failed to save settings")
     } finally {
@@ -243,28 +264,13 @@ export function HomeAssistantWidget({
   if (showSettings || !configured) {
     return (
       <div className="flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden">
-        <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
-          <div className="flex items-center gap-1.5">
-            <HugeiconsIcon
-              icon={Settings02Icon}
-              strokeWidth={2}
-              className="size-3.5 text-muted-foreground"
-            />
-            <span className="text-xs font-medium text-foreground">
-              {configured ? "Home Assistant Settings" : "Setup Home Assistant"}
-            </span>
-          </div>
-          {configured && (
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              onClick={() => setShowSettings(false)}
-              aria-label="Close settings"
-            >
-              <span className="text-xs">&times;</span>
-            </Button>
-          )}
-        </div>
+        <WidgetHeader
+          icon={HomeWifiIcon}
+          title="Home Assistant"
+          isSettings
+          settingsTitle={configured ? "Home Assistant Settings" : "Setup Home Assistant"}
+          onSettingsClick={configured ? () => setShowSettings(false) : undefined}
+        />
 
         <div className="flex-1 overflow-y-auto p-3 space-y-4">
           <div className="space-y-1.5">
@@ -283,10 +289,10 @@ export function HomeAssistantWidget({
               id="ha-secret"
               value={settingsSecretName}
               onChange={(e) => setSettingsSecretName(e.target.value)}
-              placeholder="home-assistant-token"
+              placeholder="HOME_ASSISTANT"
             />
             <p className="text-[0.625rem] text-muted-foreground">
-              Store a long-lived access token from HA Settings &gt; Security
+              Name of a secret created in Settings (not the raw token)
             </p>
           </div>
 
@@ -317,41 +323,73 @@ export function HomeAssistantWidget({
           >
             {saving ? "Saving..." : "Save Settings"}
           </Button>
+          {onDelete && <DeleteWidgetButton onConfirm={onDelete} />}
+        </div>
+      </div>
+    )
+  }
+
+  if (!loading && error) {
+    return (
+      <div className={cn(
+        "flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden",
+        "widget-glow-error"
+      )}>
+        <WidgetHeader
+          icon={HomeWifiIcon}
+          title="Home Assistant"
+          onSettingsClick={() => setShowSettings(true)}
+          status="error"
+        />
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6">
+          <HugeiconsIcon
+            icon={HomeWifiIcon}
+            strokeWidth={1.5}
+            className="size-10 text-muted-foreground/30"
+          />
+          <p className="text-sm font-medium text-muted-foreground">
+            Cannot connect to Home Assistant
+          </p>
+          <p className="text-center text-xs text-muted-foreground/70">{error}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowSettings(true)}
+          >
+            <HugeiconsIcon
+              icon={Settings02Icon}
+              strokeWidth={2}
+              data-icon="inline-start"
+            />
+            Settings
+          </Button>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden">
-      <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
-        <div className="flex items-center gap-1.5">
-          <HugeiconsIcon
-            icon={HomeWifiIcon}
-            strokeWidth={2}
-            className="size-3.5 text-muted-foreground"
-          />
-          <span className="text-xs font-medium text-foreground">
-            Home Assistant
-          </span>
-          {!loading && (
+    <div className={cn(
+      "flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden",
+      !loading && configured && !error && "widget-glow-success",
+      !loading && configured && error && "widget-glow-error"
+    )}>
+      <WidgetHeader
+        icon={HomeWifiIcon}
+        title="Home Assistant"
+        onSettingsClick={() => setShowSettings(true)}
+        status={!loading && configured ? (error ? "error" : "success") : undefined}
+        badge={
+          !loading ? (
             <Badge
               variant="secondary"
               className="ml-1 h-4 px-1.5 text-[0.5625rem]"
             >
               {entities.length}
             </Badge>
-          )}
-        </div>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          onClick={() => setShowSettings(true)}
-          aria-label="Home Assistant settings"
-        >
-          <HugeiconsIcon icon={Settings02Icon} strokeWidth={2} />
-        </Button>
-      </div>
+          ) : undefined
+        }
+      />
 
       <div className="flex-1 overflow-y-auto">
         {loading ? (
@@ -378,7 +416,7 @@ export function HomeAssistantWidget({
               className="size-8 text-muted-foreground/30"
             />
             <p className="text-xs text-muted-foreground">
-              {entityIds.length === 0
+              {savedConfig.entityIds.length === 0
                 ? "No entities configured"
                 : "No matching entities found"}
             </p>

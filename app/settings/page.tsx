@@ -499,16 +499,23 @@ interface ImportResult {
   boardsImported: number
   widgetsImported: number
   appsImported: number
-  settingsImported: number
   warnings: string[]
+}
+
+interface SelectedFile {
+  name: string
+  config: ParsedConfig
+}
+
+function pluralize(count: number, word: string): string {
+  return `${count} ${word}${count !== 1 ? "s" : ""}`
 }
 
 function ConfigExportImport() {
   const router = useRouter()
   const [exporting, setExporting] = useState(false)
   const [importing, setImporting] = useState(false)
-  const [parsedConfig, setParsedConfig] = useState<ParsedConfig | null>(null)
-  const [fileName, setFileName] = useState<string | null>(null)
+  const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null)
   const [showReplaceConfirm, setShowReplaceConfirm] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -527,7 +534,6 @@ function ConfigExportImport() {
       const a = document.createElement("a")
       a.href = url
 
-      // Extract filename from Content-Disposition header or use default
       const disposition = res.headers.get("Content-Disposition")
       const match = disposition?.match(/filename="?([^"]+)"?/)
       a.download = match?.[1] ?? `homelabarr-export-${new Date().toISOString().slice(0, 10)}.json`
@@ -557,33 +563,26 @@ function ConfigExportImport() {
           toast.error("Invalid configuration file: missing version field")
           return
         }
-        setParsedConfig(parsed as ParsedConfig)
-        setFileName(file.name)
+        setSelectedFile({ name: file.name, config: parsed as ParsedConfig })
       } catch {
         toast.error("Invalid JSON file")
       }
     }
     reader.readAsText(file)
 
-    // Reset input so re-selecting the same file triggers onChange
+    // Reset so re-selecting the same file triggers onChange
     e.target.value = ""
   }
 
-  function clearFile() {
-    setParsedConfig(null)
-    setFileName(null)
-  }
-
   async function handleImport(mode: "merge" | "replace") {
-    if (!parsedConfig) return
+    if (!selectedFile) return
     setImporting(true)
-    setShowReplaceConfirm(false)
 
     try {
       const res = await fetch("/api/config/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ config: parsedConfig, mode }),
+        body: JSON.stringify({ config: selectedFile.config, mode }),
       })
 
       const data = await res.json()
@@ -598,13 +597,11 @@ function ConfigExportImport() {
         `Imported ${result.boardsImported} boards, ${result.widgetsImported} widgets, ${result.appsImported} apps`
       )
 
-      if (result.warnings?.length) {
-        for (const warning of result.warnings) {
-          toast.warning(warning)
-        }
+      for (const warning of result.warnings ?? []) {
+        toast.warning(warning)
       }
 
-      clearFile()
+      setSelectedFile(null)
       router.refresh()
     } catch {
       toast.error("Failed to import configuration")
@@ -613,13 +610,12 @@ function ConfigExportImport() {
     }
   }
 
-  const boardCount = Array.isArray(parsedConfig?.boards) ? parsedConfig.boards.length : 0
-  const appCount = Array.isArray(parsedConfig?.apps) ? parsedConfig.apps.length : 0
+  const boardCount = Array.isArray(selectedFile?.config.boards) ? selectedFile.config.boards.length : 0
+  const appCount = Array.isArray(selectedFile?.config.apps) ? selectedFile.config.apps.length : 0
 
   return (
     <>
       <div className="space-y-4">
-        {/* Export */}
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium">Export</p>
@@ -635,7 +631,6 @@ function ConfigExportImport() {
 
         <Separator />
 
-        {/* Import */}
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium">Import</p>
@@ -660,25 +655,21 @@ function ConfigExportImport() {
           />
         </div>
 
-        {/* File preview and mode selection */}
-        {parsedConfig && fileName && (
+        {selectedFile && (
           <div className="rounded-lg border p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium">{fileName}</p>
+                <p className="text-sm font-medium">{selectedFile.name}</p>
                 <p className="text-xs text-muted-foreground">
-                  {boardCount} board{boardCount !== 1 ? "s" : ""}, {appCount} app{appCount !== 1 ? "s" : ""}
+                  {pluralize(boardCount, "board")}, {pluralize(appCount, "app")}
                 </p>
               </div>
-              <Button variant="ghost" size="sm" onClick={clearFile}>
+              <Button variant="ghost" size="sm" onClick={() => setSelectedFile(null)}>
                 Cancel
               </Button>
             </div>
             <div className="flex gap-2">
-              <Button
-                onClick={() => handleImport("merge")}
-                disabled={importing}
-              >
+              <Button onClick={() => handleImport("merge")} disabled={importing}>
                 {importing ? "Importing..." : "Merge"}
               </Button>
               <Button
@@ -686,14 +677,13 @@ function ConfigExportImport() {
                 onClick={() => setShowReplaceConfirm(true)}
                 disabled={importing}
               >
-                {importing ? "Importing..." : "Replace"}
+                Replace
               </Button>
             </div>
           </div>
         )}
       </div>
 
-      {/* Replace confirmation dialog */}
       <AlertDialog open={showReplaceConfirm} onOpenChange={setShowReplaceConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -707,7 +697,10 @@ function ConfigExportImport() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
-              onClick={() => handleImport("replace")}
+              onClick={() => {
+                setShowReplaceConfirm(false)
+                handleImport("replace")
+              }}
             >
               Replace Everything
             </AlertDialogAction>

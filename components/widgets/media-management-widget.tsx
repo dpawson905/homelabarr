@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Bookmark02Icon, Settings02Icon } from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"
+import { WidgetHeader } from "@/components/widget-header"
+import { DeleteWidgetButton } from "@/components/delete-widget-button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -24,6 +26,7 @@ import type {
 interface MediaManagementWidgetProps {
   widgetId: string
   config: Record<string, unknown> | null
+  onDelete?: () => void
 }
 
 function formatBytes(bytes: number): string {
@@ -109,28 +112,38 @@ function getServiceLabel(serviceType: string): string {
 export function MediaManagementWidget({
   widgetId,
   config,
+  onDelete,
 }: MediaManagementWidgetProps): React.ReactElement {
-  const serviceUrl = (config?.serviceUrl as string) ?? ""
-  const secretName = (config?.secretName as string) ?? ""
-  const serviceType = (config?.serviceType as string) ?? ""
+  const [savedConfig, setSavedConfig] = useState({
+    serviceType: (config?.serviceType as string) ?? "",
+    serviceUrl: (config?.serviceUrl as string) ?? "",
+    secretName: (config?.secretName as string) ?? "",
+  })
   const isConfigured =
-    serviceUrl && secretName && (serviceType === "sonarr" || serviceType === "radarr")
+    savedConfig.serviceUrl && savedConfig.secretName && (savedConfig.serviceType === "sonarr" || savedConfig.serviceType === "radarr")
 
   const [data, setData] = useState<MediaManagementResponse | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
   const [activeTab, setActiveTab] = useState<"calendar" | "queue">("calendar")
 
-  const [settingsServiceType, setSettingsServiceType] = useState(serviceType || "sonarr")
-  const [settingsServiceUrl, setSettingsServiceUrl] = useState(serviceUrl)
-  const [settingsSecretName, setSettingsSecretName] = useState(secretName)
+  const [settingsServiceType, setSettingsServiceType] = useState(savedConfig.serviceType || "sonarr")
+  const [settingsServiceUrl, setSettingsServiceUrl] = useState(savedConfig.serviceUrl)
+  const [settingsSecretName, setSettingsSecretName] = useState(savedConfig.secretName)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    setSettingsServiceType(serviceType || "sonarr")
-    setSettingsServiceUrl(serviceUrl)
-    setSettingsSecretName(secretName)
-  }, [serviceType, serviceUrl, secretName])
+    const incoming = {
+      serviceType: (config?.serviceType as string) ?? "",
+      serviceUrl: (config?.serviceUrl as string) ?? "",
+      secretName: (config?.secretName as string) ?? "",
+    }
+    setSavedConfig(incoming)
+    setSettingsServiceType(incoming.serviceType || "sonarr")
+    setSettingsServiceUrl(incoming.serviceUrl)
+    setSettingsSecretName(incoming.secretName)
+  }, [config])
 
   const fetchData = useCallback(async () => {
     if (!isConfigured) {
@@ -141,13 +154,17 @@ export function MediaManagementWidget({
     try {
       const res = await fetch(`/api/widgets/media-management?widgetId=${widgetId}`)
       if (!res.ok) {
-        console.warn("Failed to fetch media management data:", await res.text())
+        const body = await res.json().catch(() => ({ error: "Unknown error" }))
+        setError(body.error ?? `Error ${res.status}`)
+        setData(null)
         return
       }
       const json: MediaManagementResponse = await res.json()
       setData(json)
-    } catch (error) {
-      console.warn("Failed to fetch media management data:", error)
+      setError(null)
+    } catch {
+      setError("Failed to connect")
+      setData(null)
     } finally {
       setLoading(false)
     }
@@ -181,7 +198,13 @@ export function MediaManagementWidget({
         }),
       })
       if (res.ok) {
+        setSavedConfig({
+          serviceType: settingsServiceType,
+          serviceUrl: settingsServiceUrl,
+          secretName: settingsSecretName,
+        })
         setShowSettings(false)
+        setLoading(true)
       }
     } catch (error) {
       console.warn("Failed to save media management config:", error)
@@ -190,19 +213,12 @@ export function MediaManagementWidget({
     }
   }
 
-  const serviceLabel = getServiceLabel(serviceType)
+  const serviceLabel = getServiceLabel(savedConfig.serviceType)
 
   if (!isConfigured && !showSettings) {
     return (
       <div className="flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden">
-        <div className="flex shrink-0 items-center gap-1.5 border-b border-border px-3 py-2">
-          <HugeiconsIcon
-            icon={Bookmark02Icon}
-            strokeWidth={2}
-            className="size-3.5 text-muted-foreground"
-          />
-          <span className="text-xs font-medium text-foreground">Media Management</span>
-        </div>
+        <WidgetHeader icon={Bookmark02Icon} title="Media Management" />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-4">
           <HugeiconsIcon
             icon={Bookmark02Icon}
@@ -232,7 +248,7 @@ export function MediaManagementWidget({
             />
             <div className="space-y-1">
               <Input
-                placeholder="sonarr-api-key"
+                placeholder="SONARR"
                 value={settingsSecretName}
                 onChange={(e) => setSettingsSecretName(e.target.value)}
               />
@@ -256,24 +272,7 @@ export function MediaManagementWidget({
   if (showSettings) {
     return (
       <div className="flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden">
-        <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
-          <div className="flex items-center gap-1.5">
-            <HugeiconsIcon
-              icon={Settings02Icon}
-              strokeWidth={2}
-              className="size-3.5 text-muted-foreground"
-            />
-            <span className="text-xs font-medium text-foreground">{serviceLabel} Settings</span>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={() => setShowSettings(false)}
-            aria-label="Close settings"
-          >
-            <span className="text-xs">&times;</span>
-          </Button>
-        </div>
+        <WidgetHeader icon={Bookmark02Icon} title={serviceLabel} isSettings onSettingsClick={() => setShowSettings(false)} />
         <div className="flex-1 overflow-y-auto p-3 space-y-4">
           <div className="space-y-1.5">
             <Label className="text-[0.625rem] text-muted-foreground">Service Type</Label>
@@ -304,7 +303,7 @@ export function MediaManagementWidget({
               id="mm-secret-name"
               value={settingsSecretName}
               onChange={(e) => setSettingsSecretName(e.target.value)}
-              placeholder="sonarr-api-key"
+              placeholder="SONARR"
             />
             <p className="text-[0.5rem] text-muted-foreground">
               Enter the name of a secret stored in Settings
@@ -319,31 +318,63 @@ export function MediaManagementWidget({
           >
             {saving ? "Saving..." : "Save Settings"}
           </Button>
+          {onDelete && <DeleteWidgetButton onConfirm={onDelete} />}
+        </div>
+      </div>
+    )
+  }
+
+  if (!loading && error) {
+    return (
+      <div className={cn(
+        "flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden",
+        "widget-glow-error"
+      )}>
+        <WidgetHeader
+          icon={Bookmark02Icon}
+          title={serviceLabel}
+          onSettingsClick={() => setShowSettings(true)}
+          status="error"
+        />
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6">
+          <HugeiconsIcon
+            icon={Bookmark02Icon}
+            strokeWidth={1.5}
+            className="size-10 text-muted-foreground/30"
+          />
+          <p className="text-sm font-medium text-muted-foreground">
+            Cannot connect to {serviceLabel}
+          </p>
+          <p className="text-center text-xs text-muted-foreground/70">{error}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowSettings(true)}
+          >
+            <HugeiconsIcon
+              icon={Settings02Icon}
+              strokeWidth={2}
+              data-icon="inline-start"
+            />
+            Settings
+          </Button>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden">
-      <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
-        <div className="flex items-center gap-1.5">
-          <HugeiconsIcon
-            icon={Bookmark02Icon}
-            strokeWidth={2}
-            className="size-3.5 text-muted-foreground"
-          />
-          <span className="text-xs font-medium text-foreground">{serviceLabel}</span>
-        </div>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          onClick={() => setShowSettings(true)}
-          aria-label={`${serviceLabel} settings`}
-        >
-          <HugeiconsIcon icon={Settings02Icon} strokeWidth={2} />
-        </Button>
-      </div>
+    <div className={cn(
+      "flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden",
+      !loading && isConfigured && !error && "widget-glow-success",
+      !loading && isConfigured && error && "widget-glow-error"
+    )}>
+      <WidgetHeader
+        icon={Bookmark02Icon}
+        title={serviceLabel}
+        onSettingsClick={() => setShowSettings(true)}
+        status={!loading && isConfigured ? (error ? "error" : "success") : undefined}
+      />
 
       <div className="flex shrink-0 border-b border-border">
         <button

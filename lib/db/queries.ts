@@ -51,7 +51,7 @@ export function getWidgetsByBoardId(boardId: string) {
       parsed = {};
     }
 
-    return { ...widget, config: { ...configRow, config: parsed } };
+    return { ...widget, config: parsed };
   });
 }
 

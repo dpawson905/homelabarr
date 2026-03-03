@@ -18,12 +18,7 @@ export async function GET(
     )
   }
 
-  return NextResponse.json(
-    { title: icon.title, path: icon.path, hex: icon.hex },
-    {
-      headers: {
-        "Cache-Control": "public, max-age=86400",
-      },
-    }
-  )
+  return NextResponse.json(icon, {
+    headers: { "Cache-Control": "public, max-age=86400" },
+  })
 }

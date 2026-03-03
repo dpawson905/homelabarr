@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Shield01Icon, Settings02Icon, AlertCircleIcon } from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"
+import { WidgetHeader } from "@/components/widget-header"
+import { DeleteWidgetButton } from "@/components/delete-widget-button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -21,6 +23,7 @@ import type { DnsResponse } from "@/app/api/widgets/dns/types"
 interface DnsWidgetProps {
   widgetId: string
   config: Record<string, unknown> | null
+  onDelete?: () => void
 }
 
 function serviceLabel(serviceType: string): string {
@@ -35,66 +38,22 @@ function formatNumber(n: number): string {
   return n.toLocaleString()
 }
 
-interface HeaderProps {
-  serviceType?: string
-  onSettingsClick: () => void
-  isSettings?: boolean
-}
-
-function WidgetHeader({
-  serviceType,
-  onSettingsClick,
-  isSettings = false,
-}: HeaderProps): React.ReactElement {
-  const label = isSettings ? "DNS Settings" : serviceLabel(serviceType ?? "")
-
-  return (
-    <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
-      <div className="flex items-center gap-1.5 min-w-0">
-        <HugeiconsIcon
-          icon={isSettings ? Settings02Icon : Shield01Icon}
-          strokeWidth={2}
-          className="size-3.5 shrink-0 text-muted-foreground"
-        />
-        <span className="truncate text-xs font-medium text-foreground">
-          {label}
-        </span>
-      </div>
-      {isSettings ? (
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          onClick={onSettingsClick}
-          aria-label="Close settings"
-        >
-          <span className="text-xs">&times;</span>
-        </Button>
-      ) : (
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          onClick={onSettingsClick}
-          aria-label="DNS settings"
-        >
-          <HugeiconsIcon icon={Settings02Icon} strokeWidth={2} />
-        </Button>
-      )}
-    </div>
-  )
-}
-
 interface SettingsPanelProps {
   widgetId: string
   currentConfig: Record<string, unknown> | null
   onClose: () => void
+  onSaved?: (config: { serviceType: string; serviceUrl: string; secretName: string }) => void
   isSetup?: boolean
+  onDelete?: () => void
 }
 
 function SettingsPanel({
   widgetId,
   currentConfig,
   onClose,
+  onSaved,
   isSetup = false,
+  onDelete,
 }: SettingsPanelProps): React.ReactElement {
   const [serviceType, setServiceType] = useState<string>(
     (currentConfig?.serviceType as string) ?? "pihole"
@@ -111,8 +70,8 @@ function SettingsPanel({
     serviceType === "pihole" ? "http://pi.hole" : "http://localhost:3000"
   const secretHelp =
     serviceType === "pihole"
-      ? "Pi-hole API token"
-      : "AdGuard credentials (user:pass)"
+      ? "Name of a secret in Settings (Pi-hole API token)"
+      : "Name of a secret in Settings (AdGuard user:pass)"
 
   async function handleSave() {
     if (!serviceUrl.trim() || !secretName.trim()) {
@@ -140,6 +99,11 @@ function SettingsPanel({
       }
 
       toast.success("Settings saved")
+      onSaved?.({
+        serviceType,
+        serviceUrl: serviceUrl.trim(),
+        secretName: secretName.trim(),
+      })
       onClose()
     } catch {
       toast.error("Failed to save settings")
@@ -150,7 +114,7 @@ function SettingsPanel({
 
   return (
     <div className="flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden">
-      <WidgetHeader isSettings onSettingsClick={onClose} />
+      <WidgetHeader icon={Shield01Icon} title={serviceLabel(serviceType)} isSettings onSettingsClick={onClose} />
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="dns-service-type">Service Type</Label>
@@ -181,7 +145,7 @@ function SettingsPanel({
             id="dns-secret"
             value={secretName}
             onChange={(e) => setSecretName(e.target.value)}
-            placeholder="Secret name from settings"
+            placeholder="DNS_SECRET"
           />
           <p className="text-[0.625rem] text-muted-foreground">{secretHelp}</p>
         </div>
@@ -189,6 +153,7 @@ function SettingsPanel({
         <Button onClick={handleSave} disabled={saving} className="w-full" size="sm">
           {saving ? "Saving..." : isSetup ? "Connect" : "Save Settings"}
         </Button>
+        {onDelete && <DeleteWidgetButton onConfirm={onDelete} />}
       </div>
     </div>
   )
@@ -214,18 +179,32 @@ function StatCard({
 export function DnsWidget({
   widgetId,
   config,
+  onDelete,
 }: DnsWidgetProps): React.ReactElement {
-  const serviceType = (config?.serviceType as string) ?? ""
+  const [savedConfig, setSavedConfig] = useState({
+    serviceType: (config?.serviceType as string) ?? "",
+    serviceUrl: (config?.serviceUrl as string) ?? "",
+    secretName: (config?.secretName as string) ?? "",
+  })
   const isConfigured = !!(
-    serviceType &&
-    (config?.serviceUrl as string) &&
-    (config?.secretName as string)
+    savedConfig.serviceType &&
+    savedConfig.serviceUrl &&
+    savedConfig.secretName
   )
 
   const [data, setData] = useState<DnsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(!isConfigured)
+
+  useEffect(() => {
+    const incoming = {
+      serviceType: (config?.serviceType as string) ?? "",
+      serviceUrl: (config?.serviceUrl as string) ?? "",
+      secretName: (config?.secretName as string) ?? "",
+    }
+    setSavedConfig(incoming)
+  }, [config])
 
   const fetchData = useCallback(async () => {
     if (!isConfigured) return
@@ -274,17 +253,27 @@ export function DnsWidget({
         onClose={() => {
           if (isConfigured) setShowSettings(false)
         }}
+        onSaved={(cfg) => {
+          setSavedConfig(cfg)
+          setLoading(true)
+        }}
         isSetup={!isConfigured}
+        onDelete={onDelete}
       />
     )
   }
 
   if (!loading && error) {
     return (
-      <div className="flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden">
+      <div className={cn(
+        "flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden",
+        isConfigured && "widget-glow-error"
+      )}>
         <WidgetHeader
-          serviceType={serviceType}
+          icon={Shield01Icon}
+          title={serviceLabel(savedConfig.serviceType)}
           onSettingsClick={() => setShowSettings(true)}
+          status="error"
         />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6">
           <HugeiconsIcon
@@ -293,7 +282,7 @@ export function DnsWidget({
             className="size-10 text-muted-foreground/30"
           />
           <p className="text-sm font-medium text-muted-foreground">
-            Cannot connect to {serviceLabel(serviceType)}
+            Cannot connect to {serviceLabel(savedConfig.serviceType)}
           </p>
           <p className="text-center text-xs text-muted-foreground/70">{error}</p>
           <Button
@@ -314,10 +303,16 @@ export function DnsWidget({
   }
 
   return (
-    <div className="flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden">
+    <div className={cn(
+      "flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden",
+      !loading && isConfigured && !error && "widget-glow-success",
+      !loading && isConfigured && error && "widget-glow-error"
+    )}>
       <WidgetHeader
-        serviceType={serviceType}
+        icon={Shield01Icon}
+        title={serviceLabel(savedConfig.serviceType)}
         onSettingsClick={() => setShowSettings(true)}
+        status={!loading && isConfigured ? (error ? "error" : "success") : undefined}
       />
 
       <div className="flex-1 overflow-y-auto p-3 space-y-3">

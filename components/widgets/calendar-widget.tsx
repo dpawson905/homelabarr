@@ -3,7 +3,9 @@
 import { useState, useMemo } from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Calendar03Icon, PlusSignIcon, Delete03Icon } from "@hugeicons/core-free-icons"
+import { WidgetHeader } from "@/components/widget-header"
 import { Button } from "@/components/ui/button"
+import { DeleteWidgetButton } from "@/components/delete-widget-button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
@@ -21,6 +23,7 @@ interface CalendarEvent {
 interface CalendarWidgetProps {
   widgetId: string
   config: Record<string, unknown> | null
+  onDelete?: () => void
 }
 
 const COLOR_PRESETS = [
@@ -67,13 +70,14 @@ interface DateGroup {
   events: CalendarEvent[]
 }
 
-export function CalendarWidget({ widgetId, config }: CalendarWidgetProps): React.ReactElement {
+export function CalendarWidget({ widgetId, config, onDelete }: CalendarWidgetProps): React.ReactElement {
   const title = typeof config?.title === "string" && config.title.trim()
     ? config.title
     : "Calendar"
 
   const [events, setEvents] = useState<CalendarEvent[]>(() => parseEvents(config?.events))
   const [showForm, setShowForm] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -196,29 +200,32 @@ export function CalendarWidget({ widgetId, config }: CalendarWidgetProps): React
   return (
     <div className="h-full w-full flex flex-col rounded-lg border border-border bg-card overflow-hidden">
       {/* Header */}
-      <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
-        <div className="flex items-center gap-1.5">
-          <HugeiconsIcon
-            icon={Calendar03Icon}
-            strokeWidth={2}
-            className="size-3.5 text-muted-foreground"
-          />
-          <span className="text-xs font-medium text-foreground">{title}</span>
-        </div>
-        {!showForm && (
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={handleOpenAdd}
-            aria-label="Add event"
-          >
-            <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} />
-          </Button>
-        )}
-      </div>
+      <WidgetHeader
+        icon={Calendar03Icon}
+        title={title}
+        isSettings={showSettings}
+        onSettingsClick={showForm ? undefined : () => setShowSettings((s) => !s)}
+        rightContent={
+          !showForm ? (
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={handleOpenAdd}
+              aria-label="Add event"
+            >
+              <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} />
+            </Button>
+          ) : undefined
+        }
+      />
 
-      {/* Add/Edit form panel */}
-      {showForm ? (
+      {/* Settings panel */}
+      {showSettings ? (
+        <div className="flex-1 overflow-y-auto p-3 space-y-4">
+          {onDelete && <DeleteWidgetButton onConfirm={onDelete} />}
+        </div>
+      ) : showForm ? (
+      /* Add/Edit form panel */
         <div className="flex flex-col gap-2.5 border-b border-border p-3">
           <div className="flex flex-col gap-1">
             <Label htmlFor="cal-event-title" className="text-[0.625rem] text-muted-foreground">

@@ -1,0 +1,283 @@
+"use client"
+
+import { useState, useEffect, useCallback } from "react"
+import { HugeiconsIcon } from "@hugeicons/react"
+import { SecurityLockIcon } from "@hugeicons/core-free-icons"
+import { Button } from "@/components/ui/button"
+import { WidgetHeader } from "@/components/widget-header"
+import { DeleteWidgetButton } from "@/components/delete-widget-button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Skeleton } from "@/components/ui/skeleton"
+import { cn } from "@/lib/utils"
+import { toast } from "sonner"
+import type { AuthentikResponse } from "@/app/api/widgets/authentik/types"
+
+interface AuthentikWidgetProps {
+  widgetId: string
+  config: Record<string, unknown> | null
+  onDelete?: () => void
+}
+
+function StatCard({
+  label,
+  value,
+  highlight,
+}: {
+  label: string
+  value: string
+  highlight?: boolean
+}): React.ReactElement {
+  return (
+    <div className="rounded-md bg-muted/50 px-2.5 py-2">
+      <p className="text-[0.5625rem] text-muted-foreground">{label}</p>
+      <p
+        className={cn(
+          "text-sm font-semibold tabular-nums",
+          highlight && "text-red-500"
+        )}
+      >
+        {value}
+      </p>
+    </div>
+  )
+}
+
+function SettingsPanel({
+  widgetId,
+  currentConfig,
+  onClose,
+  onSaved,
+  isSetup = false,
+  onDelete,
+}: {
+  widgetId: string
+  currentConfig: Record<string, unknown> | null
+  onClose: () => void
+  onSaved?: (config: { serviceUrl: string; secretName: string }) => void
+  isSetup?: boolean
+  onDelete?: () => void
+}): React.ReactElement {
+  const [serviceUrl, setServiceUrl] = useState<string>(
+    (currentConfig?.serviceUrl as string) ?? ""
+  )
+  const [secretName, setSecretName] = useState<string>(
+    (currentConfig?.secretName as string) ?? ""
+  )
+  const [saving, setSaving] = useState(false)
+
+  async function handleSave() {
+    if (!serviceUrl.trim() || !secretName.trim()) {
+      toast.error("URL and secret name are required")
+      return
+    }
+
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/widgets/${widgetId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          config: {
+            serviceUrl: serviceUrl.trim(),
+            secretName: secretName.trim(),
+          },
+        }),
+      })
+
+      if (!res.ok) {
+        toast.error("Failed to save settings")
+        return
+      }
+
+      toast.success("Settings saved")
+      onSaved?.({
+        serviceUrl: serviceUrl.trim(),
+        secretName: secretName.trim(),
+      })
+      onClose()
+    } catch {
+      toast.error("Failed to save settings")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden">
+      <WidgetHeader icon={SecurityLockIcon} title="Authentik" isSettings onSettingsClick={onClose} />
+      <div className="flex-1 overflow-y-auto p-3 space-y-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="authentik-url">Service URL</Label>
+          <Input
+            id="authentik-url"
+            value={serviceUrl}
+            onChange={(e) => setServiceUrl(e.target.value)}
+            placeholder="https://auth.example.com"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="authentik-secret">Secret Name</Label>
+          <Input
+            id="authentik-secret"
+            value={secretName}
+            onChange={(e) => setSecretName(e.target.value)}
+            placeholder="AUTHENTIK"
+          />
+          <p className="text-[0.625rem] text-muted-foreground">
+            Name of a secret created in Settings (not the raw token)
+          </p>
+        </div>
+
+        <Button
+          onClick={handleSave}
+          disabled={saving || !serviceUrl.trim() || !secretName.trim()}
+          className="w-full"
+          size="sm"
+        >
+          {saving ? "Saving..." : isSetup ? "Connect" : "Save Settings"}
+        </Button>
+        {onDelete && <DeleteWidgetButton onConfirm={onDelete} />}
+      </div>
+    </div>
+  )
+}
+
+export function AuthentikWidget({
+  widgetId,
+  config,
+  onDelete,
+}: AuthentikWidgetProps): React.ReactElement {
+  const [savedConfig, setSavedConfig] = useState({
+    serviceUrl: (config?.serviceUrl as string) ?? "",
+    secretName: (config?.secretName as string) ?? "",
+  })
+  const isConfigured = !!(savedConfig.serviceUrl && savedConfig.secretName)
+
+  const [data, setData] = useState<AuthentikResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [showSettings, setShowSettings] = useState(!isConfigured)
+
+  useEffect(() => {
+    const incoming = {
+      serviceUrl: (config?.serviceUrl as string) ?? "",
+      secretName: (config?.secretName as string) ?? "",
+    }
+    setSavedConfig(incoming)
+  }, [config])
+
+  const fetchData = useCallback(async () => {
+    if (!isConfigured) return
+
+    try {
+      const res = await fetch(
+        `/api/widgets/authentik?widgetId=${encodeURIComponent(widgetId)}`
+      )
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: "Unknown error" }))
+        setError(body.error ?? `Error ${res.status}`)
+        setData(null)
+        return
+      }
+
+      const json = (await res.json()) as AuthentikResponse
+      setError(null)
+      setData(json)
+    } catch {
+      setError("Failed to connect")
+      setData(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [widgetId, isConfigured])
+
+  useEffect(() => {
+    if (!isConfigured) {
+      setLoading(false)
+      return
+    }
+
+    setLoading(true)
+    fetchData()
+
+    const interval = setInterval(fetchData, 30_000)
+    return () => clearInterval(interval)
+  }, [fetchData, isConfigured])
+
+  if (showSettings || !isConfigured) {
+    return (
+      <SettingsPanel
+        widgetId={widgetId}
+        currentConfig={config}
+        onClose={() => {
+          if (isConfigured) setShowSettings(false)
+        }}
+        onSaved={(cfg) => {
+          setSavedConfig(cfg)
+          setLoading(true)
+        }}
+        isSetup={!isConfigured}
+        onDelete={onDelete}
+      />
+    )
+  }
+
+  return (
+    <div className={cn(
+      "flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden",
+      !loading && isConfigured && !error && "widget-glow-success",
+      !loading && isConfigured && error && "widget-glow-error"
+    )}>
+      <WidgetHeader
+        icon={SecurityLockIcon}
+        title="Authentik"
+        onSettingsClick={() => setShowSettings(true)}
+        status={!loading && isConfigured ? (error ? "error" : "success") : undefined}
+      />
+
+      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+        {loading ? (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="rounded-md bg-muted/50 px-2.5 py-2 space-y-1">
+                  <Skeleton className="h-2 w-14" />
+                  <Skeleton className="h-4 w-10" />
+                </div>
+              ))}
+            </div>
+            <Skeleton className="h-3 w-20 mx-auto" />
+          </div>
+        ) : error ? (
+          <div className="flex h-full flex-col items-center justify-center gap-2 py-6">
+            <HugeiconsIcon
+              icon={SecurityLockIcon}
+              strokeWidth={1.5}
+              className="size-8 text-muted-foreground/30"
+            />
+            <p className="text-xs text-muted-foreground">{error}</p>
+          </div>
+        ) : data ? (
+          <>
+            <div className="grid grid-cols-2 gap-2">
+              <StatCard label="Active Users" value={data.activeUsers.toLocaleString()} />
+              <StatCard label="Total Users" value={data.totalUsers.toLocaleString()} />
+              <StatCard label="Logins (24h)" value={data.loginsLast24h.toLocaleString()} />
+              <StatCard
+                label="Failed Logins (24h)"
+                value={data.failedLoginsLast24h.toLocaleString()}
+                highlight={data.failedLoginsLast24h > 0}
+              />
+            </div>
+            <p className="text-center text-[0.625rem] text-muted-foreground">
+              Authentik {data.version}
+            </p>
+          </>
+        ) : null}
+      </div>
+    </div>
+  )
+}

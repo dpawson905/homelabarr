@@ -1,13 +1,13 @@
 "use client"
 
-import { useState, useRef, useCallback } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { WidthProvider, Responsive } from "react-grid-layout/legacy"
 import type { Layout, LayoutItem, ResponsiveLayouts } from "react-grid-layout/legacy"
 import "react-grid-layout/css/styles.css"
 import "react-resizable/css/styles.css"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { DragDropIcon, Cancel01Icon } from "@hugeicons/core-free-icons"
+import { DragDropIcon } from "@hugeicons/core-free-icons"
 import { WidgetRenderer } from "@/components/widget-renderer"
 
 const ResponsiveGridLayout = WidthProvider(Responsive)
@@ -30,30 +30,57 @@ interface WidgetGridProps {
   boardId: string
 }
 
+function buildLayouts(items: Widget[]): ResponsiveLayouts {
+  const layout: Layout = items.map((widget) => ({
+    i: widget.id,
+    x: widget.x,
+    y: widget.y,
+    w: widget.w,
+    h: widget.h,
+    minW: 1,
+    minH: 1,
+  }))
+  // Each breakpoint must have its own array — sharing a reference causes
+  // RGL to mutate one breakpoint's layout and corrupt the others.
+  return {
+    lg: [...layout],
+    md: [...layout],
+    sm: [...layout],
+    xs: [...layout],
+    xxs: [...layout],
+  }
+}
+
 export function WidgetGrid({ widgets: initialWidgets }: WidgetGridProps) {
   const router = useRouter()
   const [widgets, setWidgets] = useState<Widget[]>(initialWidgets)
+  // Keep a ref so handleLayoutChange can read current widgets without
+  // being re-created on every state update (which would interrupt drags).
+  const widgetsRef = useRef<Widget[]>(initialWidgets)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  const [layouts, setLayouts] = useState<ResponsiveLayouts>(() => {
-    const initial: Layout = initialWidgets.map((widget) => ({
-      i: widget.id,
-      x: widget.x,
-      y: widget.y,
-      w: widget.w,
-      h: widget.h,
-      minW: 1,
-      minH: 1,
-    }))
-    return { lg: initial, md: initial, sm: initial, xs: initial, xxs: initial }
-  })
+  const [layouts, setLayouts] = useState<ResponsiveLayouts>(() => buildLayouts(initialWidgets))
+
+  // Sync when server re-renders with new data (e.g. after adding a widget)
+  useEffect(() => {
+    setWidgets(initialWidgets)
+    widgetsRef.current = initialWidgets
+    setLayouts(buildLayouts(initialWidgets))
+  }, [initialWidgets])
+
+  // Keep ref in sync with state between server re-renders
+  useEffect(() => {
+    widgetsRef.current = widgets
+  }, [widgets])
 
   const handleLayoutChange = useCallback(
     (currentLayout: Layout, allLayouts: ResponsiveLayouts) => {
       setLayouts(allLayouts)
 
+      // Read from ref — avoids re-creating this callback on every drag, which
+      // would cause RGL to re-register its drag listeners and interrupt drags.
       const changes = currentLayout.filter((item: LayoutItem) => {
-        const widget = widgets.find((w) => w.id === item.i)
+        const widget = widgetsRef.current.find((w) => w.id === item.i)
         return widget && (widget.x !== item.x || widget.y !== item.y || widget.w !== item.w || widget.h !== item.h)
       })
 
@@ -82,7 +109,7 @@ export function WidgetGrid({ widgets: initialWidgets }: WidgetGridProps) {
         })
       }, 500)
     },
-    [widgets]
+    [] // stable ref — never needs to re-create
   )
 
   const handleDeleteWidget = useCallback(
@@ -119,10 +146,12 @@ export function WidgetGrid({ widgets: initialWidgets }: WidgetGridProps) {
       rowHeight={64}
       draggableHandle=".widget-drag-handle"
       onLayoutChange={handleLayoutChange}
+      compactType={null}
+      preventCollision={false}
       className="layout"
     >
       {widgets.map((widget) => (
-        <div key={widget.id} className="group relative">
+        <div key={widget.id} className="group relative h-full">
           <div className="widget-drag-handle absolute inset-x-0 top-0 z-10 flex h-6 cursor-grab items-center justify-center rounded-t-lg opacity-0 transition-opacity group-hover:opacity-100">
             <HugeiconsIcon
               icon={DragDropIcon}
@@ -130,23 +159,14 @@ export function WidgetGrid({ widgets: initialWidgets }: WidgetGridProps) {
               className="size-4 text-muted-foreground"
             />
           </div>
-          <button
-            type="button"
-            onClick={() => handleDeleteWidget(widget.id)}
-            className="absolute top-1 right-1 z-10 flex size-5 items-center justify-center rounded-full bg-destructive/10 text-destructive opacity-0 transition-opacity hover:bg-destructive/20 group-hover:opacity-100"
-            aria-label="Delete widget"
-          >
-            <HugeiconsIcon
-              icon={Cancel01Icon}
-              strokeWidth={2}
-              className="size-3"
+          <div className="h-full overflow-visible">
+            <WidgetRenderer
+              type={widget.type}
+              widgetId={widget.id}
+              config={widget.config as Record<string, unknown> | null}
+              onDelete={() => handleDeleteWidget(widget.id)}
             />
-          </button>
-          <WidgetRenderer
-            type={widget.type}
-            widgetId={widget.id}
-            config={widget.config as Record<string, unknown> | null}
-          />
+          </div>
         </div>
       ))}
     </ResponsiveGridLayout>

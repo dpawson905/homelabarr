@@ -12,19 +12,16 @@ interface AppIconProps {
   className?: string
 }
 
-// Module-level cache for Simple Icons data to avoid refetching
-const simpleIconCache = new Map<
-  string,
-  { path: string; hex: string; title: string } | null
->()
+type SimpleIconData = {
+  path: string
+  hex: string
+  title: string
+}
 
-function FirstLetterFallback({
-  name,
-  size,
-}: {
-  name: string
-  size: number
-}) {
+// Module-level cache to avoid refetching the same icon across renders
+const simpleIconCache = new Map<string, SimpleIconData | null>()
+
+function FirstLetterFallback({ name, size }: { name: string; size: number }) {
   return (
     <span
       className="text-sm font-semibold text-muted-foreground"
@@ -35,36 +32,19 @@ function FirstLetterFallback({
   )
 }
 
-function SimpleIcon({
-  slug,
-  appName,
-  size,
-}: {
-  slug: string
-  appName: string
-  size: number
-}) {
-  const [iconData, setIconData] = useState<{
-    path: string
-    hex: string
-    title: string
-  } | null>(simpleIconCache.get(slug) ?? null)
+function SimpleIcon({ slug, appName, size }: { slug: string; appName: string; size: number }) {
+  const [iconData, setIconData] = useState<SimpleIconData | null>(
+    simpleIconCache.get(slug) ?? null
+  )
   const [loading, setLoading] = useState(!simpleIconCache.has(slug))
 
   useEffect(() => {
-    if (simpleIconCache.has(slug)) {
-      setIconData(simpleIconCache.get(slug) ?? null)
-      setLoading(false)
-      return
-    }
+    if (simpleIconCache.has(slug)) return
 
     let cancelled = false
 
     fetch(`/api/icons/simple/${encodeURIComponent(slug)}`)
-      .then((res) => {
-        if (!res.ok) return null
-        return res.json() as Promise<{ path: string; hex: string; title: string }>
-      })
+      .then((res) => (res.ok ? (res.json() as Promise<SimpleIconData>) : null))
       .then((data) => {
         simpleIconCache.set(slug, data)
         if (!cancelled) {
@@ -90,13 +70,7 @@ function SimpleIcon({
   }
 
   return (
-    <svg
-      viewBox="0 0 24 24"
-      width={size}
-      height={size}
-      role="img"
-      aria-label={iconData.title}
-    >
+    <svg viewBox="0 0 24 24" width={size} height={size} role="img" aria-label={iconData.title}>
       <path d={iconData.path} fill={`#${iconData.hex}`} />
     </svg>
   )
@@ -120,23 +94,12 @@ export function AppIcon({
       content = <span>{ref.value}</span>
       break
     case "lucide":
-      content = (
-        <DynamicIcon
-          name={ref.name as IconName}
-          size={size}
-        />
-      )
+      content = <DynamicIcon name={ref.name as IconName} size={size} />
       break
     case "simple":
-      content = (
-        <SimpleIcon slug={ref.slug} appName={appName} size={size} />
-      )
+      content = <SimpleIcon slug={ref.slug} appName={appName} size={size} />
       break
   }
 
-  if (className) {
-    return <span className={className}>{content}</span>
-  }
-
-  return <>{content}</>
+  return className ? <span className={className}>{content}</span> : <>{content}</>
 }

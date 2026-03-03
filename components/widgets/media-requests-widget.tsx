@@ -9,6 +9,8 @@ import {
   Settings02Icon,
 } from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"
+import { WidgetHeader } from "@/components/widget-header"
+import { DeleteWidgetButton } from "@/components/delete-widget-button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -30,6 +32,7 @@ import type {
 interface MediaRequestsWidgetProps {
   widgetId: string
   config: Record<string, unknown> | null
+  onDelete?: () => void
 }
 
 type FilterOption = "all" | "pending" | "approved" | "available"
@@ -71,33 +74,42 @@ function isConfigured(config: Record<string, unknown> | null): boolean {
 export function MediaRequestsWidget({
   widgetId,
   config,
+  onDelete,
 }: MediaRequestsWidgetProps): React.ReactElement {
-  const serviceType = (config?.serviceType as string) ?? "overseerr"
-  const serviceUrl = (config?.serviceUrl as string) ?? ""
-  const secretName = (config?.secretName as string) ?? ""
-  const defaultFilter = (config?.defaultFilter as FilterOption) ?? "all"
-  const configured = isConfigured(config)
+  const [savedConfig, setSavedConfig] = useState({
+    serviceType: (config?.serviceType as string) ?? "overseerr",
+    serviceUrl: (config?.serviceUrl as string) ?? "",
+    secretName: (config?.secretName as string) ?? "",
+    defaultFilter: ((config?.defaultFilter as FilterOption) ?? "all") as FilterOption,
+  })
+  const configured = !!savedConfig.serviceUrl && !!savedConfig.secretName
 
   const [requests, setRequests] = useState<MediaRequest[]>([])
   const [counts, setCounts] = useState<RequestCounts | null>(null)
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<FilterOption>(defaultFilter)
+  const [error, setError] = useState<string | null>(null)
+  const [filter, setFilter] = useState<FilterOption>(savedConfig.defaultFilter)
   const [showSettings, setShowSettings] = useState(false)
 
-  const [settingsServiceType, setSettingsServiceType] = useState(serviceType)
-  const [settingsServiceUrl, setSettingsServiceUrl] = useState(serviceUrl)
-  const [settingsSecretName, setSettingsSecretName] = useState(secretName)
+  const [settingsServiceType, setSettingsServiceType] = useState(savedConfig.serviceType)
+  const [settingsServiceUrl, setSettingsServiceUrl] = useState(savedConfig.serviceUrl)
+  const [settingsSecretName, setSettingsSecretName] = useState(savedConfig.secretName)
   const [settingsDefaultFilter, setSettingsDefaultFilter] =
-    useState<FilterOption>(defaultFilter)
+    useState<FilterOption>(savedConfig.defaultFilter)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    setSettingsServiceType((config?.serviceType as string) ?? "overseerr")
-    setSettingsServiceUrl((config?.serviceUrl as string) ?? "")
-    setSettingsSecretName((config?.secretName as string) ?? "")
-    setSettingsDefaultFilter(
-      (config?.defaultFilter as FilterOption) ?? "all"
-    )
+    const incoming = {
+      serviceType: (config?.serviceType as string) ?? "overseerr",
+      serviceUrl: (config?.serviceUrl as string) ?? "",
+      secretName: (config?.secretName as string) ?? "",
+      defaultFilter: ((config?.defaultFilter as FilterOption) ?? "all") as FilterOption,
+    }
+    setSavedConfig(incoming)
+    setSettingsServiceType(incoming.serviceType)
+    setSettingsServiceUrl(incoming.serviceUrl)
+    setSettingsSecretName(incoming.secretName)
+    setSettingsDefaultFilter(incoming.defaultFilter)
   }, [config])
 
   const fetchRequests = useCallback(async () => {
@@ -114,15 +126,21 @@ export function MediaRequestsWidget({
       const res = await fetch(`/api/widgets/media-requests?${params}`)
 
       if (!res.ok) {
-        console.warn("Failed to fetch media requests:", await res.text())
+        const body = await res.json().catch(() => ({ error: "Unknown error" }))
+        setError(body.error ?? `Error ${res.status}`)
+        setRequests([])
+        setCounts(null)
         return
       }
 
       const data: MediaRequestsResponse = await res.json()
       setRequests(data.requests)
       setCounts(data.counts)
-    } catch (error) {
-      console.warn("Failed to fetch media requests:", error)
+      setError(null)
+    } catch {
+      setError("Failed to connect")
+      setRequests([])
+      setCounts(null)
     } finally {
       setLoading(false)
     }
@@ -162,7 +180,14 @@ export function MediaRequestsWidget({
         return
       }
 
+      setSavedConfig({
+        serviceType: settingsServiceType,
+        serviceUrl: settingsServiceUrl,
+        secretName: settingsSecretName,
+        defaultFilter: settingsDefaultFilter,
+      })
       setShowSettings(false)
+      setLoading(true)
     } catch {
       toast.error("Failed to save settings")
     } finally {
@@ -176,28 +201,13 @@ export function MediaRequestsWidget({
   if (showSettings || !configured) {
     return (
       <div className="flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden">
-        <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
-          <div className="flex items-center gap-1.5">
-            <HugeiconsIcon
-              icon={Settings02Icon}
-              strokeWidth={2}
-              className="size-3.5 text-muted-foreground"
-            />
-            <span className="text-xs font-medium text-foreground">
-              {configured ? `${serviceLabel} Settings` : "Setup Media Requests"}
-            </span>
-          </div>
-          {configured && (
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              onClick={() => setShowSettings(false)}
-              aria-label="Close settings"
-            >
-              <span className="text-xs">&times;</span>
-            </Button>
-          )}
-        </div>
+        <WidgetHeader
+          icon={Notification01Icon}
+          title={serviceLabel}
+          isSettings
+          settingsTitle={configured ? `${serviceLabel} Settings` : "Setup Media Requests"}
+          onSettingsClick={configured ? () => setShowSettings(false) : undefined}
+        />
 
         <div className="flex-1 overflow-y-auto p-3 space-y-4">
           <div className="space-y-1.5">
@@ -232,7 +242,7 @@ export function MediaRequestsWidget({
               id="media-req-secret"
               value={settingsSecretName}
               onChange={(e) => setSettingsSecretName(e.target.value)}
-              placeholder="overseerr-api-key"
+              placeholder="OVERSEERR"
             />
             <p className="text-[0.625rem] text-muted-foreground">
               Name of the stored secret containing your API key
@@ -272,40 +282,72 @@ export function MediaRequestsWidget({
           >
             {saving ? "Saving..." : "Save Settings"}
           </Button>
+          {onDelete && <DeleteWidgetButton onConfirm={onDelete} />}
         </div>
       </div>
     )
   }
 
-  const currentServiceLabel = serviceType === "jellyseerr" ? "Jellyseerr" : "Overseerr"
+  const currentServiceLabel = savedConfig.serviceType === "jellyseerr" ? "Jellyseerr" : "Overseerr"
 
-  return (
-    <div className="flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden">
-      <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
-        <div className="flex items-center gap-1.5">
+  if (!loading && error) {
+    return (
+      <div className={cn(
+        "flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden",
+        "widget-glow-error"
+      )}>
+        <WidgetHeader
+          icon={Notification01Icon}
+          title={currentServiceLabel}
+          onSettingsClick={() => setShowSettings(true)}
+          status="error"
+        />
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6">
           <HugeiconsIcon
             icon={Notification01Icon}
-            strokeWidth={2}
-            className="size-3.5 text-muted-foreground"
+            strokeWidth={1.5}
+            className="size-10 text-muted-foreground/30"
           />
-          <span className="text-xs font-medium text-foreground">
-            {currentServiceLabel}
-          </span>
-          {counts !== null && counts.pending > 0 && (
+          <p className="text-sm font-medium text-muted-foreground">
+            Cannot connect to {currentServiceLabel}
+          </p>
+          <p className="text-center text-xs text-muted-foreground/70">{error}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowSettings(true)}
+          >
+            <HugeiconsIcon
+              icon={Settings02Icon}
+              strokeWidth={2}
+              data-icon="inline-start"
+            />
+            Settings
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className={cn(
+      "flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden",
+      !loading && configured && !error && "widget-glow-success",
+      !loading && configured && error && "widget-glow-error"
+    )}>
+      <WidgetHeader
+        icon={Notification01Icon}
+        title={currentServiceLabel}
+        onSettingsClick={() => setShowSettings(true)}
+        status={!loading && configured ? (error ? "error" : "success") : undefined}
+        badge={
+          counts !== null && counts.pending > 0 ? (
             <span className="ml-1 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[0.5625rem] font-medium text-amber-500">
               {counts.pending} pending
             </span>
-          )}
-        </div>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          onClick={() => setShowSettings(true)}
-          aria-label="Media requests settings"
-        >
-          <HugeiconsIcon icon={Settings02Icon} strokeWidth={2} />
-        </Button>
-      </div>
+          ) : undefined
+        }
+      />
 
       <div className="flex shrink-0 items-center gap-1 border-b border-border px-3 py-1.5">
         {FILTER_OPTIONS.map((opt) => (

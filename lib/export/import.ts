@@ -9,9 +9,21 @@ import {
 import { and, eq } from "drizzle-orm";
 import {
   type HomelabarrExport,
+  type ExportBoard,
   type ImportResult,
   EXCLUDED_SETTINGS_KEYS,
 } from "./schema";
+
+// ─── Error Type ─────────────────────────────────────────────────────────────
+
+export class ImportValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ImportValidationError";
+  }
+}
+
+// ─── Public API ─────────────────────────────────────────────────────────────
 
 /**
  * Import a dashboard configuration, either merging with existing data
@@ -23,7 +35,17 @@ export function importConfig(
   data: HomelabarrExport,
   mode: "merge" | "replace"
 ): ImportResult {
-  // ── Validation ──────────────────────────────────────────────────────────
+  validateImport(data);
+
+  if (mode === "replace") {
+    return importReplace(data);
+  }
+  return importMerge(data);
+}
+
+// ─── Validation ─────────────────────────────────────────────────────────────
+
+function validateImport(data: HomelabarrExport): void {
   if (data.version !== 1) {
     throw new ImportValidationError(
       `Unsupported export version: ${data.version}. Only version 1 is supported.`
@@ -31,15 +53,11 @@ export function importConfig(
   }
 
   if (!Array.isArray(data.boards)) {
-    throw new ImportValidationError(
-      "Invalid export: 'boards' must be an array."
-    );
+    throw new ImportValidationError("Invalid export: 'boards' must be an array.");
   }
 
   if (!Array.isArray(data.apps)) {
-    throw new ImportValidationError(
-      "Invalid export: 'apps' must be an array."
-    );
+    throw new ImportValidationError("Invalid export: 'apps' must be an array.");
   }
 
   if (
@@ -47,12 +65,9 @@ export function importConfig(
     data.settings === null ||
     Array.isArray(data.settings)
   ) {
-    throw new ImportValidationError(
-      "Invalid export: 'settings' must be an object."
-    );
+    throw new ImportValidationError("Invalid export: 'settings' must be an object.");
   }
 
-  // Validate widget types within each board
   for (const board of data.boards) {
     if (!Array.isArray(board.widgets)) continue;
     for (const widget of board.widgets) {
@@ -63,12 +78,6 @@ export function importConfig(
       }
     }
   }
-
-  // ── Dispatch to mode handler ────────────────────────────────────────────
-  if (mode === "replace") {
-    return importReplace(data);
-  }
-  return importMerge(data);
 }
 
 // ─── Replace Mode ──────────────────────────────────────────────────────────
@@ -81,13 +90,15 @@ function importReplace(data: HomelabarrExport): ImportResult {
   let settingsImported = 0;
 
   db.transaction((tx) => {
-    // 1. Delete all existing data (order matters for foreign keys)
+    const now = new Date().toISOString();
+
+    // Delete all existing data (order matters for foreign keys)
     tx.delete(widgetConfigs).run();
     tx.delete(widgets).run();
     tx.delete(boards).run();
     tx.delete(apps).run();
 
-    // 2. Delete all settings EXCEPT passwordHash (preserve auth)
+    // Preserve passwordHash; delete everything else from settings
     const existingSettings = tx.select().from(settings).all();
     for (const s of existingSettings) {
       if (s.key !== "passwordHash") {
@@ -95,58 +106,10 @@ function importReplace(data: HomelabarrExport): ImportResult {
       }
     }
 
-    // 3. Insert boards and their widgets
-    const now = new Date().toISOString();
+    const counts = insertBoardsAndWidgets(tx, data.boards, now);
+    boardsImported = counts.boards;
+    widgetsImported = counts.widgets;
 
-    for (const exportBoard of data.boards) {
-      const boardId = crypto.randomUUID();
-      tx.insert(boards)
-        .values({
-          id: boardId,
-          name: exportBoard.name,
-          icon: exportBoard.icon ?? null,
-          position: exportBoard.position,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .run();
-      boardsImported++;
-
-      // 4. Insert widgets for this board
-      const boardWidgets = exportBoard.widgets ?? [];
-      for (const exportWidget of boardWidgets) {
-        const widgetId = crypto.randomUUID();
-        tx.insert(widgets)
-          .values({
-            id: widgetId,
-            boardId,
-            type: exportWidget.type,
-            x: exportWidget.x ?? 0,
-            y: exportWidget.y ?? 0,
-            w: exportWidget.w ?? 1,
-            h: exportWidget.h ?? 1,
-            createdAt: now,
-            updatedAt: now,
-          })
-          .run();
-
-        // 5. Insert widget config
-        const configStr = JSON.stringify(exportWidget.config ?? {});
-        tx.insert(widgetConfigs)
-          .values({
-            id: crypto.randomUUID(),
-            widgetId,
-            config: configStr,
-            createdAt: now,
-            updatedAt: now,
-          })
-          .run();
-
-        widgetsImported++;
-      }
-    }
-
-    // 6. Insert apps
     for (const exportApp of data.apps) {
       tx.insert(apps)
         .values({
@@ -164,33 +127,18 @@ function importReplace(data: HomelabarrExport): ImportResult {
       appsImported++;
     }
 
-    // 7. Insert settings (skip passwordHash and defaultBoardId)
     for (const [key, value] of Object.entries(data.settings)) {
       if (EXCLUDED_SETTINGS_KEYS.includes(key)) continue;
-      tx.insert(settings)
-        .values({
-          key,
-          value,
-          updatedAt: now,
-        })
-        .run();
+      tx.insert(settings).values({ key, value, updatedAt: now }).run();
       settingsImported++;
     }
 
-    // 8. Set defaultBoardId to the first imported board's new ID
+    // Point defaultBoardId at the first imported board
     if (data.boards.length > 0) {
-      const firstBoard = tx
-        .select({ id: boards.id })
-        .from(boards)
-        .limit(1)
-        .get();
+      const firstBoard = tx.select({ id: boards.id }).from(boards).limit(1).get();
       if (firstBoard) {
         tx.insert(settings)
-          .values({
-            key: "defaultBoardId",
-            value: firstBoard.id,
-            updatedAt: now,
-          })
+          .values({ key: "defaultBoardId", value: firstBoard.id, updatedAt: now })
           .onConflictDoUpdate({
             target: settings.key,
             set: { value: firstBoard.id, updatedAt: now },
@@ -215,55 +163,10 @@ function importMerge(data: HomelabarrExport): ImportResult {
   db.transaction((tx) => {
     const now = new Date().toISOString();
 
-    // 1. Insert boards (always create new)
-    for (const exportBoard of data.boards) {
-      const boardId = crypto.randomUUID();
-      tx.insert(boards)
-        .values({
-          id: boardId,
-          name: exportBoard.name,
-          icon: exportBoard.icon ?? null,
-          position: exportBoard.position,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .run();
-      boardsImported++;
+    const counts = insertBoardsAndWidgets(tx, data.boards, now);
+    boardsImported = counts.boards;
+    widgetsImported = counts.widgets;
 
-      // 2. Insert all widgets under their respective new boards
-      const boardWidgets = exportBoard.widgets ?? [];
-      for (const exportWidget of boardWidgets) {
-        const widgetId = crypto.randomUUID();
-        tx.insert(widgets)
-          .values({
-            id: widgetId,
-            boardId,
-            type: exportWidget.type,
-            x: exportWidget.x ?? 0,
-            y: exportWidget.y ?? 0,
-            w: exportWidget.w ?? 1,
-            h: exportWidget.h ?? 1,
-            createdAt: now,
-            updatedAt: now,
-          })
-          .run();
-
-        const configStr = JSON.stringify(exportWidget.config ?? {});
-        tx.insert(widgetConfigs)
-          .values({
-            id: crypto.randomUUID(),
-            widgetId,
-            config: configStr,
-            createdAt: now,
-            updatedAt: now,
-          })
-          .run();
-
-        widgetsImported++;
-      }
-    }
-
-    // 3. For apps: skip if same name AND url already exists, otherwise insert
     for (const exportApp of data.apps) {
       const existing = tx
         .select({ id: apps.id })
@@ -294,7 +197,6 @@ function importMerge(data: HomelabarrExport): ImportResult {
       appsImported++;
     }
 
-    // 4. For settings: only insert keys that don't already exist
     for (const [key, value] of Object.entries(data.settings)) {
       if (EXCLUDED_SETTINGS_KEYS.includes(key)) continue;
 
@@ -305,33 +207,73 @@ function importMerge(data: HomelabarrExport): ImportResult {
         .get();
 
       if (existing) {
-        warnings.push(
-          `Skipped setting "${key}" — already exists.`
-        );
+        warnings.push(`Skipped setting "${key}" — already exists.`);
         continue;
       }
 
-      tx.insert(settings)
-        .values({
-          key,
-          value,
-          updatedAt: now,
-        })
-        .run();
+      tx.insert(settings).values({ key, value, updatedAt: now }).run();
       settingsImported++;
     }
-
-    // 5. Keep existing defaultBoardId unchanged (no-op)
   });
 
   return { boardsImported, widgetsImported, appsImported, settingsImported, warnings };
 }
 
-// ─── Error Types ───────────────────────────────────────────────────────────
+// ─── Shared Helpers ─────────────────────────────────────────────────────────
 
-export class ImportValidationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ImportValidationError";
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+function insertBoardsAndWidgets(
+  tx: Tx,
+  exportBoards: ExportBoard[],
+  now: string
+): { boards: number; widgets: number } {
+  let boardCount = 0;
+  let widgetCount = 0;
+
+  for (const exportBoard of exportBoards) {
+    const boardId = crypto.randomUUID();
+    tx.insert(boards)
+      .values({
+        id: boardId,
+        name: exportBoard.name,
+        icon: exportBoard.icon ?? null,
+        position: exportBoard.position,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .run();
+    boardCount++;
+
+    for (const exportWidget of exportBoard.widgets ?? []) {
+      const widgetId = crypto.randomUUID();
+      tx.insert(widgets)
+        .values({
+          id: widgetId,
+          boardId,
+          type: exportWidget.type,
+          x: exportWidget.x ?? 0,
+          y: exportWidget.y ?? 0,
+          w: exportWidget.w ?? 1,
+          h: exportWidget.h ?? 1,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .run();
+
+      tx.insert(widgetConfigs)
+        .values({
+          id: crypto.randomUUID(),
+          widgetId,
+          config: JSON.stringify(exportWidget.config ?? {}),
+          createdAt: now,
+          updatedAt: now,
+        })
+        .run();
+
+      widgetCount++;
+    }
   }
+
+  return { boards: boardCount, widgets: widgetCount };
 }

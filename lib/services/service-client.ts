@@ -1,8 +1,14 @@
 import { eq } from "drizzle-orm";
+import http from "node:http";
+import https from "node:https";
 import { db } from "@/lib/db";
 import { secrets } from "@/lib/db/schema";
 import { decrypt } from "@/lib/crypto/secrets";
 import type { ServiceFetchOptions, ServiceResponse } from "./types";
+
+// Homelab services commonly use self-signed certificates.
+// This agent skips TLS verification for all outbound HTTPS requests.
+const tlsSkipAgent = new https.Agent({ rejectUnauthorized: false });
 
 export function resolveSecret(secretName: string): string | null {
   try {
@@ -18,6 +24,119 @@ export function resolveSecret(secretName: string): string | null {
   } catch {
     return null;
   }
+}
+
+/** Minimal response shape returned by fetchWithTls — close to the native Response API. */
+export interface TlsResponse {
+  ok: boolean;
+  status: number;
+  statusText: string;
+  headers: { get(name: string): string | null };
+  text(): Promise<string>;
+  json(): Promise<unknown>;
+}
+
+/**
+ * Drop-in replacement for `fetch()` that tolerates self-signed certificates.
+ * Use this in API routes that make direct fetch calls to homelab services.
+ */
+export async function fetchWithTls(
+  url: string | URL,
+  init?: RequestInit
+): Promise<TlsResponse> {
+  const urlStr = url.toString();
+  const method = init?.method ?? "GET";
+  const headers: Record<string, string> = {};
+  if (init?.headers) {
+    const h = init.headers;
+    if (h instanceof Headers) {
+      h.forEach((v, k) => { headers[k] = v; });
+    } else if (Array.isArray(h)) {
+      for (const [k, v] of h) headers[k] = v;
+    } else {
+      Object.assign(headers, h);
+    }
+  }
+
+  const raw = await serviceFetch(urlStr, {
+    method,
+    headers,
+    body: typeof init?.body === "string" ? init.body : undefined,
+    timeout: 10_000,
+  });
+
+  const bodyText = raw.body;
+  return {
+    ok: raw.status >= 200 && raw.status < 300,
+    status: raw.status,
+    statusText: raw.statusText,
+    headers: {
+      get(name: string) {
+        const lower = name.toLowerCase();
+        return raw.headers[lower] ?? null;
+      },
+    },
+    text: async () => bodyText,
+    json: async () => JSON.parse(bodyText),
+  };
+}
+
+/**
+ * Make an HTTP/HTTPS request that tolerates self-signed certificates.
+ * Returns { status, body, headers, statusText } or throws on network/timeout errors.
+ */
+function serviceFetch(
+  url: string,
+  options: {
+    method: string;
+    headers: Record<string, string>;
+    body?: string;
+    timeout: number;
+  }
+): Promise<{ status: number; statusText: string; body: string; headers: Record<string, string> }> {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const isHttps = parsed.protocol === "https:";
+    const transport = isHttps ? https : http;
+
+    const req = transport.request(
+      parsed,
+      {
+        method: options.method,
+        headers: options.headers,
+        timeout: options.timeout,
+        ...(isHttps ? { agent: tlsSkipAgent } : {}),
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk: Buffer) => chunks.push(chunk));
+        res.on("end", () => {
+          const resHeaders: Record<string, string> = {};
+          for (const [k, v] of Object.entries(res.headers)) {
+            if (typeof v === "string") resHeaders[k] = v;
+            else if (Array.isArray(v)) resHeaders[k] = v.join(", ");
+          }
+          resolve({
+            status: res.statusCode ?? 0,
+            statusText: res.statusMessage ?? "",
+            body: Buffer.concat(chunks).toString("utf-8"),
+            headers: resHeaders,
+          });
+        });
+      }
+    );
+
+    req.on("error", reject);
+    req.on("timeout", () => {
+      req.destroy();
+      reject(new Error("Service request timed out"));
+    });
+
+    if (options.body) {
+      req.write(options.body);
+    }
+    req.end();
+  });
 }
 
 export async function fetchService<T>(
@@ -73,30 +192,27 @@ export async function fetchService<T>(
         break;
     }
 
-    const fetchOptions: RequestInit = {
-      method,
-      headers,
-      signal: AbortSignal.timeout(timeout),
-    };
-
+    let requestBody: string | undefined;
     if (body && method !== "GET") {
       headers["Content-Type"] = "application/json";
-      fetchOptions.body = JSON.stringify(body);
+      requestBody = JSON.stringify(body);
     }
 
-    const response = await fetch(url.toString(), fetchOptions);
+    const response = await serviceFetch(url.toString(), {
+      method,
+      headers,
+      body: requestBody,
+      timeout,
+    });
 
-    if (!response.ok) {
+    if (response.status < 200 || response.status >= 300) {
       return { ok: false, error: `Service returned ${response.status}`, status: response.status };
     }
 
-    const data = (await response.json()) as T;
+    const data = JSON.parse(response.body) as T;
     return { ok: true, data };
   } catch (error) {
-    if (
-      error instanceof DOMException &&
-      (error.name === "TimeoutError" || error.name === "AbortError")
-    ) {
+    if (error instanceof Error && error.message === "Service request timed out") {
       return { ok: false, error: "Service request timed out" };
     }
     return { ok: false, error: "Failed to connect to service" };

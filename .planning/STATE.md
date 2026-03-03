@@ -5,13 +5,13 @@
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** A visually polished, fully customizable dashboard that looks and feels better than Homarr, with the same depth of service integrations and drag-and-drop widget management.
-**Current focus:** Phase 10 — Polish & Export
+**Current focus:** All phases complete
 
 ## Current Position
 
 Phase: 10 of 10 (Polish & Export)
-Status: Ready to plan
-Last activity: 2026-03-01 — Phase 9 executed successfully
+Status: Complete
+Last activity: 2026-03-01 — Phase 10 executed successfully
 
 ## Preferences
 
@@ -65,10 +65,11 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - Phase 7: System stats widget (CPU/RAM/disk/network via os module), Docker widget (container list/start/stop/restart via dockerode/ssh2)
 - Phase 8: Shared service client (fetchService, resolveSecret, getServiceConnection) with ServiceAuthType union (4 auth patterns). Media server (Plex/Jellyfin), media management (Sonarr/Radarr), download client (qBittorrent/SABnzbd), media requests (Overseerr/Jellyseerr) widgets.
 - Phase 9: Extended ServiceAuthType with 4 new patterns (query-auth, header-basic-auth, header-bearer, header-pve-token). DNS (Pi-hole/AdGuard), Proxmox (nodes/VMs/containers), Home Assistant (entity states + toggle controls), Uptime Kuma (status page + Prometheus metrics) widgets. Total: 17 widget types registered.
+- Phase 10: Versioned JSON export/import engine with merge/replace modes, transactional import. Export/import UI on settings page. Icon library (Simple Icons ~3400 brands + Lucide ~1500 general) with AppIcon component, icon search API, and icon picker dialog integrated into app form.
 
 ### Blockers/Concerns
 
-None yet.
+None — all 10 phases complete.
 
 ---
-*Last updated: 2026-03-01 — Phase 9 complete*
+*Last updated: 2026-03-01 — Phase 10 complete, project finished*

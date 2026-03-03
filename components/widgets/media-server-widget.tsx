@@ -9,6 +9,8 @@ import {
   Settings02Icon,
 } from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"
+import { WidgetHeader } from "@/components/widget-header"
+import { DeleteWidgetButton } from "@/components/delete-widget-button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
@@ -30,6 +32,7 @@ import type {
 interface MediaServerWidgetProps {
   widgetId: string
   config: Record<string, unknown> | null
+  onDelete?: () => void
 }
 
 interface NowPlayingViewProps {
@@ -63,11 +66,14 @@ function getMediaTypeIcon(mediaType: string) {
 export function MediaServerWidget({
   widgetId,
   config,
+  onDelete,
 }: MediaServerWidgetProps): React.ReactElement {
-  const serviceType = (config?.serviceType as string) ?? ""
-  const serviceUrl = (config?.serviceUrl as string) ?? ""
-  const secretName = (config?.secretName as string) ?? ""
-  const isConfigured = !!serviceType && !!serviceUrl && !!secretName
+  const [savedConfig, setSavedConfig] = useState({
+    serviceType: (config?.serviceType as string) ?? "",
+    serviceUrl: (config?.serviceUrl as string) ?? "",
+    secretName: (config?.secretName as string) ?? "",
+  })
+  const isConfigured = !!savedConfig.serviceType && !!savedConfig.serviceUrl && !!savedConfig.secretName
 
   const [nowPlaying, setNowPlaying] = useState<NowPlayingItem[]>([])
   const [recentlyAdded, setRecentlyAdded] = useState<RecentlyAddedItem[]>([])
@@ -76,16 +82,23 @@ export function MediaServerWidget({
   const [activeTab, setActiveTab] = useState<"now-playing" | "recently-added">("now-playing")
   const [showSettings, setShowSettings] = useState(false)
 
-  const [formServiceType, setFormServiceType] = useState(serviceType || "plex")
-  const [formServiceUrl, setFormServiceUrl] = useState(serviceUrl)
-  const [formSecretName, setFormSecretName] = useState(secretName)
+  const [formServiceType, setFormServiceType] = useState(savedConfig.serviceType || "plex")
+  const [formServiceUrl, setFormServiceUrl] = useState(savedConfig.serviceUrl)
+  const [formSecretName, setFormSecretName] = useState(savedConfig.secretName)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    setFormServiceType(serviceType || "plex")
-    setFormServiceUrl(serviceUrl)
-    setFormSecretName(secretName)
-  }, [serviceType, serviceUrl, secretName])
+    const incoming = {
+      serviceType: (config?.serviceType as string) ?? "",
+      serviceUrl: (config?.serviceUrl as string) ?? "",
+      secretName: (config?.secretName as string) ?? "",
+    }
+    setSavedConfig(incoming)
+    setFormServiceType(incoming.serviceType || "plex")
+    setFormServiceUrl(incoming.serviceUrl)
+    setFormSecretName(incoming.secretName)
+  }, [config])
 
   const fetchData = useCallback(async () => {
     if (!isConfigured) return
@@ -93,7 +106,10 @@ export function MediaServerWidget({
     try {
       const res = await fetch(`/api/widgets/media-server?widgetId=${widgetId}`)
       if (!res.ok) {
-        console.warn("Failed to fetch media server data:", await res.text())
+        const body = await res.json().catch(() => ({ error: "Unknown error" }))
+        setError(body.error ?? `Error ${res.status}`)
+        setNowPlaying([])
+        setRecentlyAdded([])
         return
       }
 
@@ -101,8 +117,11 @@ export function MediaServerWidget({
       setNowPlaying(data.nowPlaying)
       setRecentlyAdded(data.recentlyAdded)
       setServerName(data.serverName)
-    } catch (error) {
-      console.warn("Failed to fetch media server data:", error)
+      setError(null)
+    } catch {
+      setError("Failed to connect")
+      setNowPlaying([])
+      setRecentlyAdded([])
     } finally {
       setLoading(false)
     }
@@ -131,7 +150,13 @@ export function MediaServerWidget({
         }),
       })
       if (res.ok) {
+        setSavedConfig({
+          serviceType: formServiceType,
+          serviceUrl: formServiceUrl,
+          secretName: formSecretName,
+        })
         setShowSettings(false)
+        setLoading(true)
       }
     } catch (error) {
       console.warn("Failed to save media server config:", error)
@@ -143,10 +168,7 @@ export function MediaServerWidget({
   if (!isConfigured && !showSettings) {
     return (
       <div className="h-full w-full flex flex-col rounded-lg border border-border bg-card overflow-hidden">
-        <div className="flex shrink-0 items-center gap-1.5 border-b border-border px-3 py-2">
-          <HugeiconsIcon icon={Tv01Icon} strokeWidth={2} className="size-3.5 text-muted-foreground" />
-          <span className="text-xs font-medium text-foreground">Media Server</span>
-        </div>
+        <WidgetHeader icon={Tv01Icon} title="Media Server" />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-4">
           <HugeiconsIcon icon={Tv01Icon} strokeWidth={1.5} className="size-8 text-muted-foreground/30" />
           <p className="text-xs text-muted-foreground text-center">Connect to Plex or Jellyfin</p>
@@ -169,7 +191,7 @@ export function MediaServerWidget({
               onChange={(e) => setFormServiceUrl(e.target.value)}
             />
             <Input
-              placeholder="Secret name (e.g. plex-token)"
+              placeholder="PLEX_TOKEN"
               value={formSecretName}
               onChange={(e) => setFormSecretName(e.target.value)}
             />
@@ -189,20 +211,7 @@ export function MediaServerWidget({
   if (showSettings) {
     return (
       <div className="h-full w-full flex flex-col rounded-lg border border-border bg-card overflow-hidden">
-        <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
-          <div className="flex items-center gap-1.5">
-            <HugeiconsIcon icon={Settings02Icon} strokeWidth={2} className="size-3.5 text-muted-foreground" />
-            <span className="text-xs font-medium text-foreground">Media Server Settings</span>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={() => setShowSettings(false)}
-            aria-label="Close settings"
-          >
-            <span className="text-xs">&times;</span>
-          </Button>
-        </div>
+        <WidgetHeader icon={Tv01Icon} title={serverName ?? "Media Server"} isSettings onSettingsClick={() => setShowSettings(false)} />
         <div className="flex-1 overflow-y-auto p-3 space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="ms-settings-type">Service Type</Label>
@@ -231,8 +240,11 @@ export function MediaServerWidget({
               id="ms-settings-secret"
               value={formSecretName}
               onChange={(e) => setFormSecretName(e.target.value)}
-              placeholder="plex-token"
+              placeholder="PLEX_TOKEN"
             />
+            <p className="text-[0.625rem] text-muted-foreground">
+              Name of a secret created in Settings (not the raw token)
+            </p>
           </div>
           <Button
             onClick={handleSave}
@@ -242,29 +254,63 @@ export function MediaServerWidget({
           >
             {saving ? "Saving..." : "Save Settings"}
           </Button>
+          {onDelete && <DeleteWidgetButton onConfirm={onDelete} />}
+        </div>
+      </div>
+    )
+  }
+
+  if (!loading && error) {
+    return (
+      <div className={cn(
+        "flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden",
+        "widget-glow-error"
+      )}>
+        <WidgetHeader
+          icon={Tv01Icon}
+          title="Media Server"
+          onSettingsClick={() => setShowSettings(true)}
+          status="error"
+        />
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6">
+          <HugeiconsIcon
+            icon={Tv01Icon}
+            strokeWidth={1.5}
+            className="size-10 text-muted-foreground/30"
+          />
+          <p className="text-sm font-medium text-muted-foreground">
+            Cannot connect to Media Server
+          </p>
+          <p className="text-center text-xs text-muted-foreground/70">{error}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowSettings(true)}
+          >
+            <HugeiconsIcon
+              icon={Settings02Icon}
+              strokeWidth={2}
+              data-icon="inline-start"
+            />
+            Settings
+          </Button>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="h-full w-full flex flex-col rounded-lg border border-border bg-card overflow-hidden">
-      <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
-        <div className="flex items-center gap-1.5">
-          <HugeiconsIcon icon={Tv01Icon} strokeWidth={2} className="size-3.5 text-muted-foreground" />
-          <span className="text-xs font-medium text-foreground">
-            {serverName ?? "Media Server"}
-          </span>
-        </div>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          onClick={() => setShowSettings(true)}
-          aria-label="Media server settings"
-        >
-          <HugeiconsIcon icon={Settings02Icon} strokeWidth={2} />
-        </Button>
-      </div>
+    <div className={cn(
+      "h-full w-full flex flex-col rounded-lg border border-border bg-card overflow-hidden",
+      !loading && isConfigured && !error && "widget-glow-success",
+      !loading && isConfigured && error && "widget-glow-error"
+    )}>
+      <WidgetHeader
+        icon={Tv01Icon}
+        title={serverName ?? "Media Server"}
+        onSettingsClick={() => setShowSettings(true)}
+        status={!loading && isConfigured ? (error ? "error" : "success") : undefined}
+      />
 
       <div className="flex shrink-0 border-b border-border">
         {(["now-playing", "recently-added"] as const).map((tab) => (

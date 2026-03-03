@@ -68,7 +68,7 @@ export function AppSidebar({ boards, activeBoardId, ...props }: AppSidebarProps)
         </div>
       </SidebarHeader>
 
-      <SidebarSeparator />
+      
 
       <SidebarContent>
         <SidebarGroup>

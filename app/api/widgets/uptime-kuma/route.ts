@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getWidgetWithConfig } from "../helpers"
+import { fetchWithTls } from "@/lib/services/service-client"
 import type { Monitor, MonitorStatus, UptimeKumaResponse } from "./types"
 
 const STATUS_MAP: Record<number, MonitorStatus> = {
@@ -60,12 +61,8 @@ async function fetchStatusPage(
   const baseUrl = serviceUrl.replace(/\/+$/, "")
 
   const [statusRes, heartbeatRes] = await Promise.all([
-    fetch(`${baseUrl}/api/status-page/${slug}`, {
-      signal: AbortSignal.timeout(10_000),
-    }),
-    fetch(`${baseUrl}/api/status-page/heartbeat/${slug}`, {
-      signal: AbortSignal.timeout(10_000),
-    }),
+    fetchWithTls(`${baseUrl}/api/status-page/${slug}`),
+    fetchWithTls(`${baseUrl}/api/status-page/heartbeat/${slug}`),
   ])
 
   if (!statusRes.ok) {
@@ -79,8 +76,8 @@ async function fetchStatusPage(
     )
   }
 
-  const statusData: StatusPageResponse = await statusRes.json()
-  const heartbeatData: HeartbeatResponse = await heartbeatRes.json()
+  const statusData = (await statusRes.json()) as StatusPageResponse
+  const heartbeatData = (await heartbeatRes.json()) as HeartbeatResponse
 
   const monitors: Monitor[] = []
 
@@ -114,9 +111,7 @@ async function fetchStatusPage(
 async function fetchMetrics(serviceUrl: string): Promise<UptimeKumaResponse> {
   const baseUrl = serviceUrl.replace(/\/+$/, "")
 
-  const res = await fetch(`${baseUrl}/metrics`, {
-    signal: AbortSignal.timeout(10_000),
-  })
+  const res = await fetchWithTls(`${baseUrl}/metrics`)
 
   if (!res.ok) {
     throw new Error(`Metrics request failed: ${res.status} ${res.statusText}`)

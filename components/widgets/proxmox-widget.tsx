@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { ComputerIcon, Settings02Icon } from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"
+import { WidgetHeader } from "@/components/widget-header"
+import { DeleteWidgetButton } from "@/components/delete-widget-button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -19,6 +21,7 @@ import type {
 interface ProxmoxWidgetProps {
   widgetId: string
   config: Record<string, unknown> | null
+  onDelete?: () => void
 }
 
 type SectionTab = "nodes" | "guests"
@@ -202,27 +205,34 @@ function GuestsView({ guests }: { guests: ProxmoxGuest[] }): React.ReactElement 
 export function ProxmoxWidget({
   widgetId,
   config,
+  onDelete,
 }: ProxmoxWidgetProps): React.ReactElement {
-  const configured = isConfigured(config)
+  const [savedConfig, setSavedConfig] = useState({
+    serviceUrl: (config?.serviceUrl as string) ?? "",
+    secretName: (config?.secretName as string) ?? "",
+  })
+  const configured = !!savedConfig.serviceUrl && !!savedConfig.secretName
 
   const [nodes, setNodes] = useState<ProxmoxNode[]>([])
   const [guests, setGuests] = useState<ProxmoxGuest[]>([])
   const [summary, setSummary] = useState<ProxmoxSummary | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<SectionTab>("nodes")
   const [showSettings, setShowSettings] = useState(false)
 
-  const [settingsServiceUrl, setSettingsServiceUrl] = useState(
-    (config?.serviceUrl as string) ?? ""
-  )
-  const [settingsSecretName, setSettingsSecretName] = useState(
-    (config?.secretName as string) ?? ""
-  )
+  const [settingsServiceUrl, setSettingsServiceUrl] = useState(savedConfig.serviceUrl)
+  const [settingsSecretName, setSettingsSecretName] = useState(savedConfig.secretName)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    setSettingsServiceUrl((config?.serviceUrl as string) ?? "")
-    setSettingsSecretName((config?.secretName as string) ?? "")
+    const incoming = {
+      serviceUrl: (config?.serviceUrl as string) ?? "",
+      secretName: (config?.secretName as string) ?? "",
+    }
+    setSavedConfig(incoming)
+    setSettingsServiceUrl(incoming.serviceUrl)
+    setSettingsSecretName(incoming.secretName)
   }, [config])
 
   const fetchData = useCallback(async () => {
@@ -236,7 +246,11 @@ export function ProxmoxWidget({
       const res = await fetch(`/api/widgets/proxmox?${params}`)
 
       if (!res.ok) {
-        console.warn("Failed to fetch Proxmox data:", await res.text())
+        const body = await res.json().catch(() => ({ error: "Unknown error" }))
+        setError(body.error ?? `Error ${res.status}`)
+        setNodes([])
+        setGuests([])
+        setSummary(null)
         return
       }
 
@@ -244,8 +258,12 @@ export function ProxmoxWidget({
       setNodes(data.nodes)
       setGuests(data.guests)
       setSummary(data.summary)
-    } catch (error) {
-      console.warn("Failed to fetch Proxmox data:", error)
+      setError(null)
+    } catch {
+      setError("Failed to connect")
+      setNodes([])
+      setGuests([])
+      setSummary(null)
     } finally {
       setLoading(false)
     }
@@ -283,7 +301,12 @@ export function ProxmoxWidget({
         return
       }
 
+      setSavedConfig({
+        serviceUrl: settingsServiceUrl,
+        secretName: settingsSecretName,
+      })
       setShowSettings(false)
+      setLoading(true)
     } catch {
       toast.error("Failed to save settings")
     } finally {
@@ -294,28 +317,13 @@ export function ProxmoxWidget({
   if (showSettings || !configured) {
     return (
       <div className="flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden">
-        <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
-          <div className="flex items-center gap-1.5">
-            <HugeiconsIcon
-              icon={Settings02Icon}
-              strokeWidth={2}
-              className="size-3.5 text-muted-foreground"
-            />
-            <span className="text-xs font-medium text-foreground">
-              {configured ? "Proxmox Settings" : "Setup Proxmox"}
-            </span>
-          </div>
-          {configured && (
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              onClick={() => setShowSettings(false)}
-              aria-label="Close settings"
-            >
-              <span className="text-xs">&times;</span>
-            </Button>
-          )}
-        </div>
+        <WidgetHeader
+          icon={ComputerIcon}
+          title="Proxmox"
+          isSettings
+          settingsTitle={configured ? "Proxmox Settings" : "Setup Proxmox"}
+          onSettingsClick={configured ? () => setShowSettings(false) : undefined}
+        />
 
         <div className="flex-1 overflow-y-auto p-3 space-y-4">
           <div className="space-y-1.5">
@@ -334,10 +342,10 @@ export function ProxmoxWidget({
               id="proxmox-secret"
               value={settingsSecretName}
               onChange={(e) => setSettingsSecretName(e.target.value)}
-              placeholder="proxmox-api-token"
+              placeholder="PROXMOX"
             />
             <p className="text-[0.625rem] text-muted-foreground">
-              Store your API token as: USER@REALM!TOKENID=UUID
+              Name of a secret created in Settings (format: USER@REALM!TOKENID=UUID)
             </p>
           </div>
 
@@ -349,22 +357,64 @@ export function ProxmoxWidget({
           >
             {saving ? "Saving..." : "Save Settings"}
           </Button>
+          {onDelete && <DeleteWidgetButton onConfirm={onDelete} />}
+        </div>
+      </div>
+    )
+  }
+
+  if (!loading && error) {
+    return (
+      <div className={cn(
+        "flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden",
+        "widget-glow-error"
+      )}>
+        <WidgetHeader
+          icon={ComputerIcon}
+          title="Proxmox"
+          onSettingsClick={() => setShowSettings(true)}
+          status="error"
+        />
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6">
+          <HugeiconsIcon
+            icon={ComputerIcon}
+            strokeWidth={1.5}
+            className="size-10 text-muted-foreground/30"
+          />
+          <p className="text-sm font-medium text-muted-foreground">
+            Cannot connect to Proxmox
+          </p>
+          <p className="text-center text-xs text-muted-foreground/70">{error}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowSettings(true)}
+          >
+            <HugeiconsIcon
+              icon={Settings02Icon}
+              strokeWidth={2}
+              data-icon="inline-start"
+            />
+            Settings
+          </Button>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden">
-      <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
-        <div className="flex items-center gap-1.5">
-          <HugeiconsIcon
-            icon={ComputerIcon}
-            strokeWidth={2}
-            className="size-3.5 text-muted-foreground"
-          />
-          <span className="text-xs font-medium text-foreground">Proxmox</span>
-          {summary !== null && (
+    <div className={cn(
+      "flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden",
+      !loading && configured && !error && "widget-glow-success",
+      !loading && configured && error && "widget-glow-error"
+    )}>
+      <WidgetHeader
+        icon={ComputerIcon}
+        title="Proxmox"
+        onSettingsClick={() => setShowSettings(true)}
+        status={!loading && configured ? (error ? "error" : "success") : undefined}
+        badge={
+          summary !== null ? (
             <>
               <span className="ml-1 rounded-full bg-blue-500/10 px-1.5 py-0.5 text-[0.5625rem] font-medium text-blue-500">
                 {summary.onlineNodes}/{summary.totalNodes} nodes
@@ -373,17 +423,9 @@ export function ProxmoxWidget({
                 {summary.runningGuests}/{summary.totalGuests} running
               </span>
             </>
-          )}
-        </div>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          onClick={() => setShowSettings(true)}
-          aria-label="Proxmox settings"
-        >
-          <HugeiconsIcon icon={Settings02Icon} strokeWidth={2} />
-        </Button>
-      </div>
+          ) : undefined
+        }
+      />
 
       <div className="flex shrink-0 items-center gap-1 border-b border-border px-3 py-1.5">
         {(["nodes", "guests"] as const).map((tab) => (

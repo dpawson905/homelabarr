@@ -162,6 +162,10 @@
 
 /* ─── react-grid-layout overrides ──────────────────────────────────────────── */
 
+.react-grid-item {
+  overflow: visible !important;
+}
+
 .react-grid-item.react-grid-placeholder {
   background: oklch(from var(--primary) l c h / 15%);
   border: 2px dashed var(--primary);
@@ -177,4 +181,14 @@
   opacity: 0.8;
   box-shadow: 0 8px 25px -5px oklch(from var(--primary) l c h / 20%),
     0 4px 10px -6px oklch(from var(--primary) l c h / 10%);
+}
+
+/* ─── Widget status glow ──────────────────────────────────────────────────── */
+
+.widget-glow-success {
+  box-shadow: oklch(0.77 0.20 131 / 15%) 1.95px 1.95px 2.6px;
+}
+
+.widget-glow-error {
+  box-shadow: oklch(0.637 0.237 25.331 / 15%) 1.95px 1.95px 2.6px;
 }

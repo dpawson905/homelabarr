@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { CloudIcon, Settings02Icon, Location01Icon } from "@hugeicons/core-free-icons"
+import { CloudIcon, Location01Icon } from "@hugeicons/core-free-icons"
+import { WidgetHeader } from "@/components/widget-header"
 import { Button } from "@/components/ui/button"
+import { DeleteWidgetButton } from "@/components/delete-widget-button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -18,6 +20,7 @@ import { format } from "date-fns"
 interface WeatherWidgetProps {
   widgetId: string
   config: Record<string, unknown> | null
+  onDelete?: () => void
 }
 
 interface WeatherData {
@@ -52,7 +55,7 @@ function getWeatherInfo(code: number): { label: string; emoji: string } {
   return { label: "Unknown", emoji: "❓" }
 }
 
-export function WeatherWidget({ widgetId, config }: WeatherWidgetProps): React.ReactElement {
+export function WeatherWidget({ widgetId, config, onDelete }: WeatherWidgetProps): React.ReactElement {
   const configLat = typeof config?.latitude === "number" ? config.latitude : null
   const configLon = typeof config?.longitude === "number" ? config.longitude : null
   const configLocationName = typeof config?.locationName === "string" ? config.locationName : ""
@@ -161,28 +164,11 @@ export function WeatherWidget({ widgetId, config }: WeatherWidgetProps): React.R
   return (
     <div className="h-full w-full flex flex-col rounded-lg border border-border bg-card overflow-hidden">
       {/* Header */}
-      <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
-        <div className="flex items-center gap-1.5">
-          <HugeiconsIcon
-            icon={CloudIcon}
-            strokeWidth={2}
-            className="size-3.5 text-muted-foreground"
-          />
-          <span className="text-xs font-medium text-foreground">
-            {configLocationName || "Weather"}
-          </span>
-        </div>
-        {isConfigured && (
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={() => setShowSettings((s) => !s)}
-            aria-label="Weather settings"
-          >
-            <HugeiconsIcon icon={Settings02Icon} strokeWidth={2} />
-          </Button>
-        )}
-      </div>
+      <WidgetHeader
+        icon={CloudIcon}
+        title={configLocationName || "Weather"}
+        onSettingsClick={isConfigured ? () => setShowSettings((s) => !s) : undefined}
+      />
 
       {/* Settings panel */}
       {showSettings ? (
@@ -250,6 +236,7 @@ export function WeatherWidget({ widgetId, config }: WeatherWidgetProps): React.R
           <Button size="sm" onClick={handleSave} disabled={saving}>
             {saving ? "Saving..." : "Save"}
           </Button>
+          {onDelete && <DeleteWidgetButton onConfirm={onDelete} />}
         </div>
       ) : null}
 

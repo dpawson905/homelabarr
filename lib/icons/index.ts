@@ -11,10 +11,10 @@ export type IconRef = SimpleIconRef | LucideIconRef | EmojiIconRef | NoneIconRef
 /**
  * Parse an icon reference string into a typed descriptor.
  *
- * - "si:plex"     -> { type: "simple", slug: "plex" }
- * - "lucide:home" -> { type: "lucide", name: "home" }
- * - "🎬"          -> { type: "emoji", value: "🎬" }
- * - null/""       -> { type: "none" }
+ * - "si:plex"      -> { type: "simple", slug: "plex" }
+ * - "lucide:home"  -> { type: "lucide", name: "home" }
+ * - "🎬"           -> { type: "emoji", value: "🎬" }
+ * - null/""        -> { type: "none" }
  */
 export function parseIconRef(ref: string | null | undefined): IconRef {
   if (!ref || ref.trim() === "") {
@@ -33,7 +33,6 @@ export function parseIconRef(ref: string | null | undefined): IconRef {
     return name ? { type: "lucide", name } : { type: "none" }
   }
 
-  // No prefix -- treat as emoji
   return { type: "emoji", value: trimmed }
 }
 
@@ -45,21 +44,21 @@ export interface SimpleIconData {
   hex: string
 }
 
-// Module-level cache so simple-icons is only imported once
-let simpleIconsModule: Record<string, { title: string; slug: string; hex: string; path: string; svg: string }> | null = null
+type SimpleIconEntry = {
+  title: string
+  slug: string
+  hex: string
+  path: string
+  svg: string
+}
 
-/**
- * Convert a slug like "plex" to its simple-icons import key "siPlex".
- */
+// Module-level cache so simple-icons is only imported once
+let simpleIconsModule: Record<string, SimpleIconEntry> | null = null
+
 function slugToImportKey(slug: string): string {
-  // simple-icons keys are "si" + PascalCase of the slug
-  // Slug segments are separated by hyphens in the slug (e.g., "visual-studio-code")
   const pascal = slug
     .split(/[-.]/)
-    .map((segment) => {
-      if (segment.length === 0) return ""
-      return segment.charAt(0).toUpperCase() + segment.slice(1)
-    })
+    .map((part) => (part ? part.charAt(0).toUpperCase() + part.slice(1) : ""))
     .join("")
   return `si${pascal}`
 }
@@ -73,19 +72,12 @@ function slugToImportKey(slug: string): string {
 export function getSimpleIconData(slug: string): SimpleIconData | null {
   if (!simpleIconsModule) {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    simpleIconsModule = require("simple-icons") as typeof simpleIconsModule
+    simpleIconsModule = require("simple-icons") as Record<string, SimpleIconEntry>
   }
 
-  const key = slugToImportKey(slug)
-  const icon = simpleIconsModule![key] as
-    | { title: string; slug: string; hex: string; path: string; svg: string }
-    | undefined
+  const icon = simpleIconsModule[slugToImportKey(slug)] as SimpleIconEntry | undefined
 
   if (!icon) return null
 
-  return {
-    title: icon.title,
-    path: icon.path,
-    hex: icon.hex,
-  }
+  return { title: icon.title, path: icon.path, hex: icon.hex }
 }

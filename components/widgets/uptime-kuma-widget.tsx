@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Activity01Icon, Settings02Icon } from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"
+import { WidgetHeader } from "@/components/widget-header"
+import { DeleteWidgetButton } from "@/components/delete-widget-button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
@@ -21,6 +23,7 @@ import type { Monitor, UptimeKumaResponse } from "@/app/api/widgets/uptime-kuma/
 interface UptimeKumaWidgetProps {
   widgetId: string
   config: Record<string, unknown> | null
+  onDelete?: () => void
 }
 
 interface SettingsFormProps {
@@ -120,20 +123,36 @@ function SettingsForm({
 export function UptimeKumaWidget({
   widgetId,
   config,
+  onDelete,
 }: UptimeKumaWidgetProps): React.ReactElement {
-  const serviceUrl = (config?.serviceUrl as string) ?? ""
-  const slug = (config?.slug as string) ?? ""
-  const dataSource = (config?.dataSource as string) ?? "status-page"
-  const isConfigured = !!serviceUrl && (dataSource === "metrics" || !!slug)
+  const [savedConfig, setSavedConfig] = useState({
+    serviceUrl: (config?.serviceUrl as string) ?? "",
+    slug: (config?.slug as string) ?? "",
+    dataSource: (config?.dataSource as string) ?? "status-page",
+  })
+  const isConfigured = !!savedConfig.serviceUrl && (savedConfig.dataSource === "metrics" || !!savedConfig.slug)
 
   const [data, setData] = useState<UptimeKumaResponse | null>(null)
   const [loading, setLoading] = useState(isConfigured)
+  const [error, setError] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
 
-  const [formServiceUrl, setFormServiceUrl] = useState(serviceUrl)
-  const [formSlug, setFormSlug] = useState(slug)
-  const [formDataSource, setFormDataSource] = useState(dataSource)
+  const [formServiceUrl, setFormServiceUrl] = useState(savedConfig.serviceUrl)
+  const [formSlug, setFormSlug] = useState(savedConfig.slug)
+  const [formDataSource, setFormDataSource] = useState(savedConfig.dataSource)
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    const incoming = {
+      serviceUrl: (config?.serviceUrl as string) ?? "",
+      slug: (config?.slug as string) ?? "",
+      dataSource: (config?.dataSource as string) ?? "status-page",
+    }
+    setSavedConfig(incoming)
+    setFormServiceUrl(incoming.serviceUrl)
+    setFormSlug(incoming.slug)
+    setFormDataSource(incoming.dataSource)
+  }, [config])
 
   const fetchData = useCallback(async () => {
     if (!isConfigured) return
@@ -141,12 +160,16 @@ export function UptimeKumaWidget({
     try {
       const res = await fetch(`/api/widgets/uptime-kuma?widgetId=${widgetId}`)
       if (!res.ok) {
-        console.warn("Failed to fetch Uptime Kuma data:", await res.text())
+        const body = await res.json().catch(() => ({ error: "Unknown error" }))
+        setError(body.error ?? `Error ${res.status}`)
+        setData(null)
         return
       }
       setData(await res.json())
-    } catch (error) {
-      console.warn("Failed to fetch Uptime Kuma data:", error)
+      setError(null)
+    } catch {
+      setError("Failed to connect")
+      setData(null)
     } finally {
       setLoading(false)
     }
@@ -174,7 +197,13 @@ export function UptimeKumaWidget({
         }),
       })
       if (res.ok) {
+        setSavedConfig({
+          serviceUrl: formServiceUrl,
+          slug: formSlug,
+          dataSource: formDataSource,
+        })
         setShowSettings(false)
+        setLoading(true)
       }
     } catch (error) {
       console.warn("Failed to save Uptime Kuma config:", error)
@@ -197,14 +226,10 @@ export function UptimeKumaWidget({
   if (!isConfigured && !showSettings) {
     return (
       <div className="h-full w-full flex flex-col rounded-lg border border-border bg-card overflow-hidden">
-        <div className="flex shrink-0 items-center gap-1.5 border-b border-border px-3 py-2">
-          <HugeiconsIcon
-            icon={Activity01Icon}
-            strokeWidth={2}
-            className="size-3.5 text-muted-foreground"
-          />
-          <span className="text-xs font-medium text-foreground">Uptime Kuma</span>
-        </div>
+        <WidgetHeader
+          icon={Activity01Icon}
+          title="Uptime Kuma"
+        />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-4">
           <HugeiconsIcon
             icon={Activity01Icon}
@@ -225,60 +250,78 @@ export function UptimeKumaWidget({
   if (showSettings) {
     return (
       <div className="h-full w-full flex flex-col rounded-lg border border-border bg-card overflow-hidden">
-        <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
-          <div className="flex items-center gap-1.5">
+        <WidgetHeader
+          icon={Activity01Icon}
+          title="Uptime Kuma"
+          isSettings
+          onSettingsClick={() => setShowSettings(false)}
+        />
+        <div className="flex-1 overflow-y-auto p-3 space-y-4">
+          <SettingsForm {...sharedFormProps} submitLabel="Save Settings" />
+          {onDelete && <DeleteWidgetButton onConfirm={onDelete} />}
+        </div>
+      </div>
+    )
+  }
+
+  if (!loading && error) {
+    return (
+      <div className={cn(
+        "flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden",
+        "widget-glow-error"
+      )}>
+        <WidgetHeader
+          icon={Activity01Icon}
+          title="Uptime Kuma"
+          onSettingsClick={() => setShowSettings(true)}
+          status="error"
+        />
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6">
+          <HugeiconsIcon
+            icon={Activity01Icon}
+            strokeWidth={1.5}
+            className="size-10 text-muted-foreground/30"
+          />
+          <p className="text-sm font-medium text-muted-foreground">
+            Cannot connect to Uptime Kuma
+          </p>
+          <p className="text-center text-xs text-muted-foreground/70">{error}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowSettings(true)}
+          >
             <HugeiconsIcon
               icon={Settings02Icon}
               strokeWidth={2}
-              className="size-3.5 text-muted-foreground"
+              data-icon="inline-start"
             />
-            <span className="text-xs font-medium text-foreground">
-              Uptime Kuma Settings
-            </span>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={() => setShowSettings(false)}
-            aria-label="Close settings"
-          >
-            <span className="text-xs">&times;</span>
+            Settings
           </Button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-3 space-y-4">
-          <SettingsForm {...sharedFormProps} submitLabel="Save Settings" />
         </div>
       </div>
     )
   }
 
   return (
-    <div className="h-full w-full flex flex-col rounded-lg border border-border bg-card overflow-hidden">
-      <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
-        <div className="flex items-center gap-1.5">
-          <HugeiconsIcon
-            icon={Activity01Icon}
-            strokeWidth={2}
-            className="size-3.5 text-muted-foreground"
-          />
-          <span className="text-xs font-medium text-foreground">
-            {data?.statusPageName ?? "Uptime Kuma"}
-          </span>
-          {data && (
+    <div className={cn(
+      "h-full w-full flex flex-col rounded-lg border border-border bg-card overflow-hidden",
+      !loading && isConfigured && !error && "widget-glow-success",
+      !loading && isConfigured && error && "widget-glow-error"
+    )}>
+      <WidgetHeader
+        icon={Activity01Icon}
+        title={data?.statusPageName ?? "Uptime Kuma"}
+        onSettingsClick={() => setShowSettings(true)}
+        status={!loading && isConfigured ? (error ? "error" : "success") : undefined}
+        badge={
+          data ? (
             <Badge variant="secondary" className="ml-1 h-4 px-1.5 text-[0.5625rem]">
               {data.summary.up}/{data.summary.total} up
             </Badge>
-          )}
-        </div>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          onClick={() => setShowSettings(true)}
-          aria-label="Uptime Kuma settings"
-        >
-          <HugeiconsIcon icon={Settings02Icon} strokeWidth={2} />
-        </Button>
-      </div>
+          ) : undefined
+        }
+      />
 
       {data && data.summary.total > 0 && (
         <div className="flex shrink-0 flex-wrap gap-1.5 border-b border-border px-3 py-1.5">

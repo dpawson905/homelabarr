@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef } from "react"
 import {
   Dialog,
   DialogContent,
@@ -27,9 +27,15 @@ interface IconPickerDialogProps {
   currentIcon?: string | null
 }
 
+interface IconGridProps {
+  icons: IconResult[]
+  currentIcon?: string | null
+  loading: boolean
+  onSelect: (ref: string) => void
+}
+
 type IconResult = { ref: string; title: string; hex?: string }
 
-// Popular homelab brand icons for the default view
 const POPULAR_BRANDS: IconResult[] = [
   "plex", "jellyfin", "sonarr", "radarr", "overseerr", "qbittorrent",
   "sabnzbd", "pihole", "adguard", "homeassistant", "proxmox", "uptimekuma",
@@ -38,7 +44,6 @@ const POPULAR_BRANDS: IconResult[] = [
   "unifi", "synology", "truenas", "emby", "lidarr", "prowlarr",
 ].map((slug) => ({ ref: `si:${slug}`, title: slug.charAt(0).toUpperCase() + slug.slice(1) }))
 
-// Popular general-purpose icons for the default view
 const POPULAR_GENERAL: IconResult[] = [
   "home", "server", "globe", "settings", "shield", "database",
   "hard-drive", "network", "monitor", "cloud", "lock", "key",
@@ -64,28 +69,29 @@ export function IconPickerDialog({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Reset state when dialog opens
   useEffect(() => {
     if (open) {
       setQuery("")
       setDebouncedQuery("")
       setResults([])
       setLoading(false)
-      // Focus the search input after mount
       setTimeout(() => inputRef.current?.focus(), 100)
     }
   }, [open])
 
-  // Debounce search input
-  const handleQueryChange = useCallback((value: string) => {
+  function handleQueryChange(value: string) {
     setQuery(value)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
       setDebouncedQuery(value.trim())
     }, 300)
-  }, [])
+  }
 
-  // Fetch search results when debounced query or tab changes
+  function handleTabChange(tab: string) {
+    setActiveTab(tab)
+    setDebouncedQuery(query.trim())
+  }
+
   useEffect(() => {
     if (!debouncedQuery) {
       setResults([])
@@ -121,12 +127,8 @@ export function IconPickerDialog({
     onOpenChange(false)
   }
 
-  // Determine which icons to display
-  const displayIcons = debouncedQuery
-    ? results
-    : activeTab === "brands"
-      ? POPULAR_BRANDS
-      : POPULAR_GENERAL
+  const defaultIcons = activeTab === "brands" ? POPULAR_BRANDS : POPULAR_GENERAL
+  const displayIcons = debouncedQuery ? results : defaultIcons
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -145,7 +147,7 @@ export function IconPickerDialog({
           placeholder="Search icons..."
         />
 
-        <Tabs value={activeTab} onValueChange={(val) => { setActiveTab(val); setDebouncedQuery(query.trim()) }}>
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList>
             <TabsTrigger value="brands">Brands</TabsTrigger>
             <TabsTrigger value="general">General</TabsTrigger>
@@ -153,18 +155,18 @@ export function IconPickerDialog({
 
           <TabsContent value="brands">
             <IconGrid
-              icons={activeTab === "brands" ? displayIcons : []}
+              icons={displayIcons}
               currentIcon={currentIcon}
-              loading={loading && activeTab === "brands"}
+              loading={loading}
               onSelect={handleSelect}
             />
           </TabsContent>
 
           <TabsContent value="general">
             <IconGrid
-              icons={activeTab === "general" ? displayIcons : []}
+              icons={displayIcons}
               currentIcon={currentIcon}
-              loading={loading && activeTab === "general"}
+              loading={loading}
               onSelect={handleSelect}
             />
           </TabsContent>
@@ -174,21 +176,10 @@ export function IconPickerDialog({
   )
 }
 
-function IconGrid({
-  icons,
-  currentIcon,
-  loading,
-  onSelect,
-}: {
-  icons: IconResult[]
-  currentIcon?: string | null
-  loading: boolean
-  onSelect: (ref: string) => void
-}) {
+function IconGrid({ icons, currentIcon, loading, onSelect }: IconGridProps) {
   return (
     <ScrollArea className="h-[320px]">
       <div className="grid grid-cols-6 gap-2 p-1">
-        {/* None / Clear button */}
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>

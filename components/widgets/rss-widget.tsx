@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { RssIcon, Settings02Icon, PlusSignIcon, Cancel01Icon, Alert02Icon } from "@hugeicons/core-free-icons"
+import { RssIcon, PlusSignIcon, Cancel01Icon, Alert02Icon } from "@hugeicons/core-free-icons"
+import { WidgetHeader } from "@/components/widget-header"
 import { Button } from "@/components/ui/button"
+import { DeleteWidgetButton } from "@/components/delete-widget-button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { formatDistanceToNow } from "date-fns"
@@ -11,6 +13,7 @@ import { formatDistanceToNow } from "date-fns"
 interface RssWidgetProps {
   widgetId: string
   config: Record<string, unknown> | null
+  onDelete?: () => void
 }
 
 interface FeedConfig {
@@ -65,7 +68,7 @@ function isValidUrl(url: string): boolean {
   }
 }
 
-export function RssWidget({ widgetId, config }: RssWidgetProps): React.ReactElement {
+export function RssWidget({ widgetId, config, onDelete }: RssWidgetProps): React.ReactElement {
   const feeds = useMemo(() => parseFeeds(config?.feeds), [config?.feeds])
   const maxItems = typeof config?.maxItems === "number" ? config.maxItems : 15
   const refreshInterval = typeof config?.refreshInterval === "number" ? config.refreshInterval : 15
@@ -207,10 +210,7 @@ export function RssWidget({ widgetId, config }: RssWidgetProps): React.ReactElem
   if (feeds.length === 0 && !showSettings) {
     return (
       <div className="h-full w-full flex flex-col rounded-lg border border-border bg-card overflow-hidden">
-        <div className="flex shrink-0 items-center gap-1.5 border-b border-border px-3 py-2">
-          <HugeiconsIcon icon={RssIcon} strokeWidth={2} className="size-3.5 text-muted-foreground" />
-          <span className="text-xs font-medium text-foreground">RSS Feed</span>
-        </div>
+        <WidgetHeader icon={RssIcon} title="RSS Feed" />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-4">
           <HugeiconsIcon icon={RssIcon} strokeWidth={1.5} className="size-8 text-muted-foreground" />
           <p className="text-xs text-muted-foreground text-center">Add a feed URL to get started</p>
@@ -237,23 +237,16 @@ export function RssWidget({ widgetId, config }: RssWidgetProps): React.ReactElem
   return (
     <div className="h-full w-full flex flex-col rounded-lg border border-border bg-card overflow-hidden">
       {/* Header */}
-      <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
-        <div className="flex items-center gap-1.5">
-          <HugeiconsIcon icon={RssIcon} strokeWidth={2} className="size-3.5 text-muted-foreground" />
-          <span className="text-xs font-medium text-foreground">RSS Feed</span>
-          {hasErrors && !showSettings && (
+      <WidgetHeader
+        icon={RssIcon}
+        title="RSS Feed"
+        onSettingsClick={() => setShowSettings((s) => !s)}
+        badge={
+          hasErrors && !showSettings ? (
             <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} className="size-3 text-yellow-500" />
-          )}
-        </div>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          onClick={() => setShowSettings((s) => !s)}
-          aria-label="RSS feed settings"
-        >
-          <HugeiconsIcon icon={Settings02Icon} strokeWidth={2} />
-        </Button>
-      </div>
+          ) : undefined
+        }
+      />
 
       {/* Settings panel */}
       {showSettings ? (
@@ -343,6 +336,7 @@ export function RssWidget({ widgetId, config }: RssWidgetProps): React.ReactElem
             <Button size="sm" onClick={handleSaveSettings} disabled={saving}>
               {saving ? "Saving..." : "Save"}
             </Button>
+            {onDelete && <DeleteWidgetButton onConfirm={onDelete} />}
           </div>
         </div>
       ) : (

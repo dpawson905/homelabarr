@@ -10,6 +10,8 @@ import {
   Settings02Icon,
 } from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"
+import { WidgetHeader } from "@/components/widget-header"
+import { DeleteWidgetButton } from "@/components/delete-widget-button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -22,6 +24,7 @@ import type { ContainerData } from "@/app/api/widgets/docker/types"
 interface DockerWidgetProps {
   widgetId: string
   config: Record<string, unknown> | null
+  onDelete?: () => void
 }
 
 function formatBytes(bytes: number, decimals = 1): string {
@@ -46,61 +49,12 @@ function getStatusColor(state: string): string {
   }
 }
 
-interface DockerWidgetHeaderProps {
-  runningCount?: number
-  onSettingsClick: () => void
-  isSettings?: boolean
-}
-
-function DockerWidgetHeader({
-  runningCount,
-  onSettingsClick,
-  isSettings = false,
-}: DockerWidgetHeaderProps): React.ReactElement {
-  return (
-    <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
-      <div className="flex items-center gap-1.5">
-        <HugeiconsIcon
-          icon={isSettings ? Settings02Icon : ContainerTruckIcon}
-          strokeWidth={2}
-          className="size-3.5 text-muted-foreground"
-        />
-        <span className="text-xs font-medium text-foreground">
-          {isSettings ? "Docker Settings" : "Docker"}
-        </span>
-        {!isSettings && runningCount !== undefined && (
-          <Badge variant="secondary" className="ml-1 h-4 px-1.5 text-[0.5625rem]">
-            {runningCount}
-          </Badge>
-        )}
-      </div>
-      {isSettings ? (
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          onClick={onSettingsClick}
-          aria-label="Close settings"
-        >
-          <span className="text-xs">&times;</span>
-        </Button>
-      ) : (
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          onClick={onSettingsClick}
-          aria-label="Docker settings"
-        >
-          <HugeiconsIcon icon={Settings02Icon} strokeWidth={2} />
-        </Button>
-      )}
-    </div>
-  )
-}
-
-export function DockerWidget({ widgetId, config }: DockerWidgetProps): React.ReactElement {
-  const socketPath = (config?.socketPath as string) ?? "/var/run/docker.sock"
-  const showStopped = (config?.showStopped as boolean) ?? false
-  const refreshInterval = (config?.refreshInterval as number) ?? 10
+export function DockerWidget({ widgetId, config, onDelete }: DockerWidgetProps): React.ReactElement {
+  const [savedConfig, setSavedConfig] = useState({
+    socketPath: (config?.socketPath as string) ?? "/var/run/docker.sock",
+    showStopped: (config?.showStopped as boolean) ?? false,
+    refreshInterval: (config?.refreshInterval as number) ?? 10,
+  })
 
   const [containers, setContainers] = useState<ContainerData[]>([])
   const [loading, setLoading] = useState(true)
@@ -108,22 +62,28 @@ export function DockerWidget({ widgetId, config }: DockerWidgetProps): React.Rea
   const [showSettings, setShowSettings] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
-  const [settingsSocketPath, setSettingsSocketPath] = useState(socketPath)
-  const [settingsShowStopped, setSettingsShowStopped] = useState(showStopped)
-  const [settingsRefreshInterval, setSettingsRefreshInterval] = useState(refreshInterval)
+  const [settingsSocketPath, setSettingsSocketPath] = useState(savedConfig.socketPath)
+  const [settingsShowStopped, setSettingsShowStopped] = useState(savedConfig.showStopped)
+  const [settingsRefreshInterval, setSettingsRefreshInterval] = useState(savedConfig.refreshInterval)
   const [saving, setSaving] = useState(false)
 
   // Keep settings form in sync when saved config propagates back via props
   useEffect(() => {
-    setSettingsSocketPath(socketPath)
-    setSettingsShowStopped(showStopped)
-    setSettingsRefreshInterval(refreshInterval)
-  }, [socketPath, showStopped, refreshInterval])
+    const incoming = {
+      socketPath: (config?.socketPath as string) ?? "/var/run/docker.sock",
+      showStopped: (config?.showStopped as boolean) ?? false,
+      refreshInterval: (config?.refreshInterval as number) ?? 10,
+    }
+    setSavedConfig(incoming)
+    setSettingsSocketPath(incoming.socketPath)
+    setSettingsShowStopped(incoming.showStopped)
+    setSettingsRefreshInterval(incoming.refreshInterval)
+  }, [config])
 
   const fetchContainers = useCallback(async () => {
     const params = new URLSearchParams()
-    if (socketPath !== "/var/run/docker.sock") params.set("socketPath", socketPath)
-    if (showStopped) params.set("all", "true")
+    if (savedConfig.socketPath !== "/var/run/docker.sock") params.set("socketPath", savedConfig.socketPath)
+    if (savedConfig.showStopped) params.set("all", "true")
 
     const query = params.toString()
     const url = `/api/widgets/docker${query ? `?${query}` : ""}`
@@ -150,15 +110,15 @@ export function DockerWidget({ widgetId, config }: DockerWidgetProps): React.Rea
     } finally {
       setLoading(false)
     }
-  }, [socketPath, showStopped])
+  }, [savedConfig.socketPath, savedConfig.showStopped])
 
   useEffect(() => {
     setLoading(true)
     fetchContainers()
 
-    const interval = setInterval(fetchContainers, refreshInterval * 1000)
+    const interval = setInterval(fetchContainers, savedConfig.refreshInterval * 1000)
     return () => clearInterval(interval)
-  }, [fetchContainers, refreshInterval])
+  }, [fetchContainers, savedConfig.refreshInterval])
 
   async function handleAction(containerId: string, action: "start" | "stop" | "restart") {
     setActionLoading(`${containerId}-${action}`)
@@ -166,7 +126,7 @@ export function DockerWidget({ widgetId, config }: DockerWidgetProps): React.Rea
       const res = await fetch(`/api/widgets/docker/${containerId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, socketPath }),
+        body: JSON.stringify({ action, socketPath: savedConfig.socketPath }),
       })
 
       if (!res.ok) {
@@ -203,7 +163,13 @@ export function DockerWidget({ widgetId, config }: DockerWidgetProps): React.Rea
         return
       }
 
+      setSavedConfig({
+        socketPath: settingsSocketPath,
+        showStopped: settingsShowStopped,
+        refreshInterval: settingsRefreshInterval,
+      })
       setShowSettings(false)
+      setLoading(true)
     } catch {
       toast.error("Failed to save settings")
     } finally {
@@ -216,7 +182,7 @@ export function DockerWidget({ widgetId, config }: DockerWidgetProps): React.Rea
   if (showSettings) {
     return (
       <div className="flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden">
-        <DockerWidgetHeader isSettings onSettingsClick={() => setShowSettings(false)} />
+        <WidgetHeader icon={ContainerTruckIcon} title="Docker" isSettings onSettingsClick={() => setShowSettings(false)} />
         <div className="flex-1 overflow-y-auto p-3 space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="docker-socket">Socket Path</Label>
@@ -253,6 +219,7 @@ export function DockerWidget({ widgetId, config }: DockerWidgetProps): React.Rea
           <Button onClick={handleSaveSettings} disabled={saving} className="w-full" size="sm">
             {saving ? "Saving..." : "Save Settings"}
           </Button>
+          {onDelete && <DeleteWidgetButton onConfirm={onDelete} />}
         </div>
       </div>
     )
@@ -260,8 +227,11 @@ export function DockerWidget({ widgetId, config }: DockerWidgetProps): React.Rea
 
   if (!loading && unavailable) {
     return (
-      <div className="flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden">
-        <DockerWidgetHeader onSettingsClick={() => setShowSettings(true)} />
+      <div className={cn(
+        "flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden",
+        "widget-glow-error"
+      )}>
+        <WidgetHeader icon={ContainerTruckIcon} title="Docker" onSettingsClick={() => setShowSettings(true)} status="error" />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6">
           <HugeiconsIcon
             icon={ContainerTruckIcon}
@@ -271,7 +241,7 @@ export function DockerWidget({ widgetId, config }: DockerWidgetProps): React.Rea
           <p className="text-sm font-medium text-muted-foreground">Cannot connect to Docker</p>
           <p className="text-center text-xs text-muted-foreground/70">
             Make sure Docker is running and the socket is accessible at{" "}
-            <code className="rounded bg-muted px-1 py-0.5 text-[0.625rem]">{socketPath}</code>
+            <code className="rounded bg-muted px-1 py-0.5 text-[0.625rem]">{savedConfig.socketPath}</code>
           </p>
           <Button variant="outline" size="sm" onClick={() => setShowSettings(true)}>
             <HugeiconsIcon icon={Settings02Icon} strokeWidth={2} data-icon="inline-start" />
@@ -283,10 +253,21 @@ export function DockerWidget({ widgetId, config }: DockerWidgetProps): React.Rea
   }
 
   return (
-    <div className="flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden">
-      <DockerWidgetHeader
-        runningCount={loading ? undefined : runningCount}
+    <div className={cn(
+      "flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden",
+      !loading && !unavailable && "widget-glow-success",
+      !loading && unavailable && "widget-glow-error"
+    )}>
+      <WidgetHeader
+        icon={ContainerTruckIcon}
+        title="Docker"
         onSettingsClick={() => setShowSettings(true)}
+        status={!loading ? (unavailable ? "error" : "success") : undefined}
+        badge={!loading && runningCount !== undefined ? (
+          <Badge variant="secondary" className="ml-1 h-4 px-1.5 text-[0.5625rem]">
+            {runningCount}
+          </Badge>
+        ) : undefined}
       />
 
       <div className="flex-1 overflow-y-auto">

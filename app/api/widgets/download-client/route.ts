@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getWidgetWithConfig } from "@/app/api/widgets/helpers"
-import { resolveSecret, fetchService } from "@/lib/services/service-client"
+import { resolveSecret, fetchService, fetchWithTls } from "@/lib/services/service-client"
 import type {
   DownloadItem,
   DownloadSummary,
@@ -71,13 +71,12 @@ async function handleQBittorrent(
 ): Promise<NextResponse> {
   const baseUrl = serviceUrl.replace(/\/$/, "")
 
-  let loginRes: Response
+  let loginRes: Awaited<ReturnType<typeof fetchWithTls>>
   try {
-    loginRes = await fetch(`${baseUrl}/api/v2/auth/login`, {
+    loginRes = await fetchWithTls(`${baseUrl}/api/v2/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`,
-      signal: AbortSignal.timeout(10_000),
     })
   } catch {
     return NextResponse.json(
@@ -104,11 +103,10 @@ async function handleQBittorrent(
     )
   }
 
-  let torrentsRes: Response
+  let torrentsRes: Awaited<ReturnType<typeof fetchWithTls>>
   try {
-    torrentsRes = await fetch(`${baseUrl}/api/v2/torrents/info?filter=all`, {
+    torrentsRes = await fetchWithTls(`${baseUrl}/api/v2/torrents/info?filter=all`, {
       headers: { Cookie: `SID=${sid}` },
-      signal: AbortSignal.timeout(10_000),
     })
   } catch {
     return NextResponse.json(

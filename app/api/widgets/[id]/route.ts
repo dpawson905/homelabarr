@@ -59,13 +59,28 @@ export async function PATCH(
       }
 
       if (hasConfigUpdate) {
-        tx.update(widgetConfigs)
-          .set({
-            config: serializeConfig(body.config),
-            updatedAt: new Date().toISOString(),
-          })
+        const existingConfig = tx
+          .select()
+          .from(widgetConfigs)
           .where(eq(widgetConfigs.widgetId, id))
-          .run();
+          .get();
+
+        if (existingConfig) {
+          tx.update(widgetConfigs)
+            .set({
+              config: serializeConfig(body.config),
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(widgetConfigs.widgetId, id))
+            .run();
+        } else {
+          tx.insert(widgetConfigs)
+            .values({
+              widgetId: id,
+              config: serializeConfig(body.config),
+            })
+            .run();
+        }
       }
     });
 
