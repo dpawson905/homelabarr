@@ -40,14 +40,23 @@ for (const entry of journal.entries) {
   // Drizzle migration files use "--> statement-breakpoint" as delimiter
   const statements = sql.split("--> statement-breakpoint").map(s => s.trim()).filter(Boolean);
 
-  db.transaction(() => {
-    for (const stmt of statements) {
-      db.exec(stmt);
+  try {
+    db.transaction(() => {
+      for (const stmt of statements) {
+        db.exec(stmt);
+      }
+      db.prepare("INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)").run(hash, Date.now());
+    })();
+    console.log(`[migrate] Applied: ${hash}`);
+  } catch (err) {
+    // If tables already exist (e.g. migrating from a dev DB), mark as applied and continue
+    if (err.code === "SQLITE_ERROR" && err.message.includes("already exists")) {
+      db.prepare("INSERT OR IGNORE INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)").run(hash, Date.now());
+      console.log(`[migrate] Skipped (already applied): ${hash}`);
+    } else {
+      throw err;
     }
-    db.prepare("INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)").run(hash, Date.now());
-  })();
-
-  console.log(`[migrate] Applied: ${hash}`);
+  }
 }
 
 // Seed: create default board if none exists
