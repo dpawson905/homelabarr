@@ -32,6 +32,9 @@ import { GiteaWidget } from "@/components/widgets/gitea-widget"
 import { FirewallWidget } from "@/components/widgets/firewall-widget"
 import { ScrutinyWidget } from "@/components/widgets/scrutiny-widget"
 import { FrigateWidget } from "@/components/widgets/frigate-widget"
+import { ServerPowerWidget } from "@/components/widgets/server-power-widget"
+import { PrometheusWidget } from "@/components/widgets/prometheus-widget"
+import { WakeOnLanWidget } from "@/components/widgets/wake-on-lan-widget"
 
 interface WidgetRendererProps {
   type: string
@@ -105,6 +108,12 @@ export function WidgetRenderer({ type, widgetId, config, onDelete }: WidgetRende
       return <ScrutinyWidget widgetId={widgetId} config={c} onDelete={onDelete} />
     case "frigate":
       return <FrigateWidget widgetId={widgetId} config={c} onDelete={onDelete} />
+    case "server-power":
+      return <ServerPowerWidget widgetId={widgetId} config={c} onDelete={onDelete} />
+    case "prometheus":
+      return <PrometheusWidget widgetId={widgetId} config={c} onDelete={onDelete} />
+    case "wake-on-lan":
+      return <WakeOnLanWidget widgetId={widgetId} config={c} onDelete={onDelete} />
     default:
       return <WidgetPlaceholder type={type} />
   }

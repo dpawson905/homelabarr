@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { ServerIcon } from "@hugeicons/core-free-icons"
+import { ServerStack01Icon } from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -158,7 +158,7 @@ export function ServerPowerWidget({
   return (
     <div className="h-full w-full flex flex-col rounded-lg border border-border bg-card">
       <WidgetHeader
-        icon={ServerIcon}
+        icon={ServerStack01Icon}
         title="Server Power"
         onSettingsClick={() => setShowSettings((s) => !s)}
         isSettings={showSettings}
