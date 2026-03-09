@@ -3,11 +3,14 @@ import * as si from "systeminformation"
 
 export async function GET(): Promise<NextResponse> {
   try {
-    const [currentLoad, mem, fsSize, networkStats] = await Promise.all([
+    const [currentLoad, mem, fsSize, networkStats, cpuInfo, osInfo, timeInfo] = await Promise.all([
       si.currentLoad(),
       si.mem(),
       si.fsSize(),
       si.networkStats(),
+      si.cpu(),
+      si.osInfo(),
+      si.time(),
     ])
 
     // CPU metrics
@@ -61,8 +64,17 @@ export async function GET(): Promise<NextResponse> {
       tx_sec: nonLoopback.reduce((sum, iface) => sum + iface.tx_sec, 0),
     }
 
+    // System info
+    const system = {
+      hostname: osInfo.hostname,
+      cpuModel: `${cpuInfo.manufacturer} ${cpuInfo.brand}`,
+      cpuCores: cpuInfo.physicalCores,
+      cpuThreads: cpuInfo.cores,
+      uptime: timeInfo.uptime,
+    }
+
     return NextResponse.json(
-      { cpu, memory, disk, network },
+      { cpu, memory, disk, network, system },
       { headers: { "Cache-Control": "no-store" } }
     )
   } catch (error) {
