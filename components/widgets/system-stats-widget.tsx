@@ -12,6 +12,14 @@ interface SystemStatsWidgetProps {
   onDelete?: () => void
 }
 
+interface Filesystem {
+  mount: string
+  type: string
+  used: number
+  size: number
+  usage: number
+}
+
 interface SystemStatsData {
   cpu: {
     usage: number
@@ -26,7 +34,7 @@ interface SystemStatsData {
     used: number
     total: number
     usage: number
-    filesystems: { mount: string; used: number; size: number; usage: number }[]
+    filesystems: Filesystem[]
   }
   network: {
     rx_sec: number
@@ -169,22 +177,6 @@ export function SystemStatsWidget({ config, onDelete }: SystemStatsWidgetProps):
               </div>
             </div>
 
-            {/* Disk */}
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-baseline justify-between">
-                <span className="text-[0.625rem] font-medium text-muted-foreground">Disk</span>
-                <span className="text-[0.625rem] font-medium text-foreground">
-                  {formatBytes(data.disk.used)} / {formatBytes(data.disk.total)}
-                </span>
-              </div>
-              <div className="h-2 rounded-full bg-muted overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ${getBarColor(data.disk.usage)}`}
-                  style={{ width: `${Math.min(data.disk.usage, 100)}%` }}
-                />
-              </div>
-            </div>
-
             {/* Network */}
             <div className="flex flex-col gap-1.5">
               <div className="flex items-baseline justify-between">
@@ -196,6 +188,30 @@ export function SystemStatsWidget({ config, onDelete }: SystemStatsWidgetProps):
               </div>
             </div>
           </div>
+
+          {/* Filesystems */}
+          {data.disk.filesystems.length > 0 && (
+            <div className="mt-3 flex flex-col gap-2">
+              {data.disk.filesystems.map((fs) => (
+                <div key={fs.mount} className="flex flex-col gap-1">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-[0.625rem] font-medium text-muted-foreground truncate mr-2">
+                      {fs.mount}
+                    </span>
+                    <span className="text-[0.625rem] font-medium text-foreground whitespace-nowrap">
+                      {formatBytes(fs.used)} / {formatBytes(fs.size)}
+                    </span>
+                  </div>
+                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${getBarColor(fs.usage)}`}
+                      style={{ width: `${Math.min(fs.usage, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       ) : null}
       </>

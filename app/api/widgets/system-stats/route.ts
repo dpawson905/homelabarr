@@ -24,7 +24,10 @@ export async function GET(): Promise<NextResponse> {
     }
 
     // Disk metrics — filter to real filesystems and deduplicate by device
-    const realFsTypes = new Set(["ext2", "ext3", "ext4", "xfs", "btrfs", "zfs", "ntfs", "vfat", "fat32", "apfs", "hfs+"])
+    const realFsTypes = new Set([
+      "ext2", "ext3", "ext4", "xfs", "btrfs", "zfs", "ntfs", "vfat", "fat32", "apfs", "hfs+",
+      "nfs", "nfs4", "cifs", "smb", "smbfs", "fuse.mergerfs", "fuse.sshfs",
+    ])
     const validFs = fsSize.filter((fs) => fs.size > 0 && realFsTypes.has(fs.type.toLowerCase()))
     // Deduplicate by device to avoid counting the same physical disk multiple times
     const seen = new Set<string>()
