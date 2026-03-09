@@ -146,7 +146,7 @@ export function WidgetGrid({ widgets: initialWidgets }: WidgetGridProps) {
       rowHeight={64}
       draggableHandle=".widget-drag-handle"
       onLayoutChange={handleLayoutChange}
-      compactType={null}
+      compactType="vertical"
       preventCollision={false}
       className="layout"
     >
