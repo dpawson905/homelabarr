@@ -198,7 +198,7 @@ export function AddWidgetDialog({ boardId, open, onOpenChange }: AddWidgetDialog
       const response = await fetch("/api/widgets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ boardId, type, x: 0, y: Infinity, w, h }),
+        body: JSON.stringify({ boardId, type, w, h }),
       })
 
       if (!response.ok) {

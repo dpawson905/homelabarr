@@ -40,6 +40,7 @@ services:
       - NODE_ENV=production
       - PORT=3575
       # - ENCRYPTION_SECRET=change-me-to-a-long-random-string
+      # - SECURE_COOKIES=true
 EOF
 
 docker compose up -d
@@ -80,11 +81,15 @@ services:
     volumes:
       - ./data:/app/data
       - /var/run/docker.sock:/var/run/docker.sock
+      # To show additional drives/mounts in the System Stats widget, bind-mount them (read-only):
+      # - /mnt/data/media:/mnt/data/media:ro
     environment:
       - NODE_ENV=production
       - PORT=3575
       # Uncomment and set to persist encryption key across rebuilds:
       # - ENCRYPTION_SECRET=change-me-to-a-long-random-string
+      # Set to "true" if accessing via HTTPS (e.g. behind a reverse proxy):
+      # - SECURE_COOKIES=true
 ```
 
 **Build from source:**
@@ -100,11 +105,12 @@ services:
     volumes:
       - ./data:/app/data
       - /var/run/docker.sock:/var/run/docker.sock
+      # - /mnt/data/media:/mnt/data/media:ro
     environment:
       - NODE_ENV=production
       - PORT=3575
-      # Uncomment and set to persist encryption key across rebuilds:
       # - ENCRYPTION_SECRET=change-me-to-a-long-random-string
+      # - SECURE_COOKIES=true
 ```
 
 ### Environment variables
@@ -114,6 +120,7 @@ services:
 | `PORT` | `3575` | Port the app listens on |
 | `NODE_ENV` | `production` | Node environment |
 | `ENCRYPTION_SECRET` | _(auto-generated)_ | Key used to encrypt stored API secrets. If not set, a key is auto-generated and saved to `./data/.encryption-key`. Set this explicitly if you want to retain your secrets after wiping the data directory. |
+| `SECURE_COOKIES` | _(unset)_ | Set to `true` if you access the dashboard over HTTPS (e.g. behind a reverse proxy like Nginx Proxy Manager or Caddy). Leave unset when accessing over plain HTTP. |
 
 ### Volumes
 
@@ -121,6 +128,21 @@ services:
 |---|---|---|
 | `./data` | `/app/data` | SQLite database + encryption key |
 | `/var/run/docker.sock` | `/var/run/docker.sock` | Docker widget host access |
+| `/mnt/data/media` | `/mnt/data/media` | _(optional)_ Expose a host mount to the System Stats widget |
+
+#### System Stats widget — showing additional drives
+
+The System Stats widget can only see filesystems mounted inside the container. To show NFS shares, additional drives, or other host mounts, bind-mount them into the container (read-only is fine):
+
+```yaml
+volumes:
+  - ./data:/app/data
+  - /var/run/docker.sock:/var/run/docker.sock
+  - /mnt/data/media:/mnt/data/media:ro        # NFS share
+  - /mnt/backups:/mnt/backups:ro               # another drive
+```
+
+Each mount appears as a separate bar in the widget showing used/total space. The widget filters out virtual filesystems (tmpfs, overlay, etc.) so only real and network filesystems are displayed.
 
 ### Upgrading
 
@@ -243,3 +265,9 @@ Set `ENCRYPTION_SECRET` to a fixed value in `docker-compose.yml`. Without it, a 
 
 **Widget shows an error after entering a secret name**
 Check that the secret name in the widget settings matches exactly what you named it in Settings → Secrets (case-sensitive).
+
+**Login doesn't work — page reloads but nothing happens**
+If you're accessing the dashboard over plain HTTP (not HTTPS), make sure `SECURE_COOKIES` is **not** set to `true`. Browsers silently reject secure cookies on non-HTTPS connections.
+
+**System Stats widget shows wrong disk size or is missing a drive**
+The widget can only see filesystems mounted inside the container. To show NFS shares or additional host drives, bind-mount them into the container — see the [Volumes](#volumes) section above.

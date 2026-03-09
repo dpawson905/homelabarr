@@ -68,13 +68,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const configValue = body.config !== undefined ? serializeConfig(body.config) : "{}";
 
     const result = db.transaction((tx) => {
+      // Place new widgets below existing ones to avoid overlap
+      const existing = tx
+        .select({ y: widgets.y, h: widgets.h })
+        .from(widgets)
+        .where(eq(widgets.boardId, body.boardId))
+        .all();
+      const bottomY = existing.reduce((max, w) => Math.max(max, w.y + w.h), 0);
+
       const widget = tx
         .insert(widgets)
         .values({
           boardId: body.boardId,
           type: body.type,
           x: body.x ?? 0,
-          y: body.y ?? 0,
+          y: Number.isFinite(body.y) ? body.y : bottomY,
           w: body.w ?? 1,
           h: body.h ?? 1,
         })

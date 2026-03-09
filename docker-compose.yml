@@ -10,6 +10,8 @@ services:
     volumes:
       - ./data:/app/data
       - /var/run/docker.sock:/var/run/docker.sock
+      # To show additional drives/mounts in the System Stats widget, bind-mount them (read-only):
+      # - /mnt/data/media:/mnt/data/media:ro
     environment:
       - NODE_ENV=production
       - PORT=3575
