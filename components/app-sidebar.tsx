@@ -142,7 +142,7 @@ export function AppSidebar({ boards, activeBoardId, ...props }: AppSidebarProps)
 
       <SidebarFooter>
         <div className="px-2 py-1">
-          <span className="text-[0.6rem] text-muted-foreground/50">v0.1.0</span>
+          <span className="text-[0.6rem] text-muted-foreground/50">v{process.env.NEXT_PUBLIC_APP_VERSION}</span>
         </div>
       </SidebarFooter>
 
