@@ -40,6 +40,8 @@ interface PlexSessionMetadata {
   year?: number
   viewOffset?: number
   duration?: number
+  thumb?: string
+  grandparentThumb?: string
   User?: { title?: string }
   Player?: { state?: string }
 }
@@ -50,14 +52,20 @@ interface PlexRecentMetadata {
   type?: string
   year?: number
   addedAt?: number
+  thumb?: string
+  grandparentThumb?: string
 }
 
 interface JellyfinNowPlayingItem {
+  Id?: string
   Name?: string
   SeriesName?: string
+  SeriesId?: string
   Type?: string
   RunTimeTicks?: number
   ProductionYear?: number
+  ImageTags?: Record<string, string>
+  SeriesPrimaryImageTag?: string
 }
 
 interface JellyfinSession {
@@ -67,15 +75,38 @@ interface JellyfinSession {
 }
 
 interface JellyfinLatestItem {
+  Id?: string
   Name?: string
   SeriesName?: string
+  SeriesId?: string
   Type?: string
   DateCreated?: string
   PremiereDate?: string
   ProductionYear?: number
+  ImageTags?: Record<string, string>
+  SeriesPrimaryImageTag?: string
 }
 
-async function fetchPlexNowPlaying(baseUrl: string, apiKey: string): Promise<NowPlayingItem[]> {
+function buildThumbProxyUrl(widgetId: string, thumbPath: string): string {
+  return `/api/widgets/media-server/thumb?widgetId=${encodeURIComponent(widgetId)}&path=${encodeURIComponent(thumbPath)}`
+}
+
+function plexThumbPath(item: { thumb?: string; grandparentThumb?: string }): string | undefined {
+  return item.thumb ?? item.grandparentThumb
+}
+
+function jellyfinThumbPath(baseUrl: string, item: { Id?: string; SeriesId?: string; ImageTags?: Record<string, string>; SeriesPrimaryImageTag?: string }): string | undefined {
+  // For episodes, prefer the series poster; for movies use the item's own image
+  if (item.SeriesId && item.SeriesPrimaryImageTag) {
+    return `${baseUrl}/Items/${item.SeriesId}/Images/Primary?tag=${item.SeriesPrimaryImageTag}&quality=60&maxHeight=120`
+  }
+  if (item.Id && item.ImageTags?.Primary) {
+    return `${baseUrl}/Items/${item.Id}/Images/Primary?tag=${item.ImageTags.Primary}&quality=60&maxHeight=120`
+  }
+  return undefined
+}
+
+async function fetchPlexNowPlaying(baseUrl: string, apiKey: string, widgetId: string): Promise<NowPlayingItem[]> {
   const result = await fetchService<PlexMediaContainer<PlexSessionMetadata>>({
     baseUrl,
     apiKey,
@@ -88,22 +119,26 @@ async function fetchPlexNowPlaying(baseUrl: string, apiKey: string): Promise<Now
   const metadata = result.data?.MediaContainer?.Metadata
   if (!Array.isArray(metadata)) return []
 
-  return metadata.map((item) => ({
-    title: item.title ?? "Unknown",
-    subtitle: item.grandparentTitle ?? "",
-    user: item.User?.title ?? "Unknown",
-    state: (item.Player?.state ?? "playing") as NowPlayingItem["state"],
-    progressPercent:
-      item.viewOffset && item.duration
-        ? Math.round((item.viewOffset / item.duration) * 100)
-        : 0,
-    mediaType: mapPlexMediaType(item.type ?? ""),
-    year: item.year,
-    duration: item.duration ? formatDuration(item.duration) : undefined,
-  }))
+  return metadata.map((item) => {
+    const thumb = plexThumbPath(item)
+    return {
+      title: item.title ?? "Unknown",
+      subtitle: item.grandparentTitle ?? "",
+      user: item.User?.title ?? "Unknown",
+      state: (item.Player?.state ?? "playing") as NowPlayingItem["state"],
+      progressPercent:
+        item.viewOffset && item.duration
+          ? Math.round((item.viewOffset / item.duration) * 100)
+          : 0,
+      mediaType: mapPlexMediaType(item.type ?? ""),
+      year: item.year,
+      duration: item.duration ? formatDuration(item.duration) : undefined,
+      thumbUrl: thumb ? buildThumbProxyUrl(widgetId, thumb) : undefined,
+    }
+  })
 }
 
-async function fetchPlexRecentlyAdded(baseUrl: string, apiKey: string): Promise<RecentlyAddedItem[]> {
+async function fetchPlexRecentlyAdded(baseUrl: string, apiKey: string, widgetId: string): Promise<RecentlyAddedItem[]> {
   const result = await fetchService<PlexMediaContainer<PlexRecentMetadata>>({
     baseUrl,
     apiKey,
@@ -117,13 +152,17 @@ async function fetchPlexRecentlyAdded(baseUrl: string, apiKey: string): Promise<
   const metadata = result.data?.MediaContainer?.Metadata
   if (!Array.isArray(metadata)) return []
 
-  return metadata.map((item) => ({
-    title: item.title ?? "Unknown",
-    subtitle: item.grandparentTitle ?? "",
-    mediaType: mapPlexMediaType(item.type ?? ""),
-    addedAt: item.addedAt ? new Date(item.addedAt * 1000).toISOString() : "",
-    year: item.year,
-  }))
+  return metadata.map((item) => {
+    const thumb = plexThumbPath(item)
+    return {
+      title: item.title ?? "Unknown",
+      subtitle: item.grandparentTitle ?? "",
+      mediaType: mapPlexMediaType(item.type ?? ""),
+      addedAt: item.addedAt ? new Date(item.addedAt * 1000).toISOString() : "",
+      year: item.year,
+      thumbUrl: thumb ? buildThumbProxyUrl(widgetId, thumb) : undefined,
+    }
+  })
 }
 
 async function fetchJellyfinNowPlaying(baseUrl: string, apiKey: string): Promise<NowPlayingItem[]> {
@@ -156,6 +195,7 @@ async function fetchJellyfinNowPlaying(baseUrl: string, apiKey: string): Promise
         mediaType: mapJellyfinMediaType(item.Type ?? ""),
         year: item.ProductionYear,
         duration: runTimeTicks > 0 ? formatDuration(runTimeTicks / 10_000) : undefined,
+        thumbUrl: jellyfinThumbPath(baseUrl, item),
       }
     })
 }
@@ -184,6 +224,7 @@ async function fetchJellyfinRecentlyAdded(baseUrl: string, apiKey: string): Prom
     mediaType: mapJellyfinMediaType(item.Type ?? ""),
     addedAt: item.DateCreated ?? item.PremiereDate ?? "",
     year: item.ProductionYear,
+    thumbUrl: jellyfinThumbPath(baseUrl, item),
   }))
 }
 
@@ -223,8 +264,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const [nowPlaying, recentlyAdded] =
     serviceType === "plex"
       ? await Promise.all([
-          fetchPlexNowPlaying(serviceUrl, apiKey),
-          fetchPlexRecentlyAdded(serviceUrl, apiKey),
+          fetchPlexNowPlaying(serviceUrl, apiKey, widgetId),
+          fetchPlexRecentlyAdded(serviceUrl, apiKey, widgetId),
         ])
       : await Promise.all([
           fetchJellyfinNowPlaying(serviceUrl, apiKey),

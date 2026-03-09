@@ -7,6 +7,7 @@ export interface NowPlayingItem {
   mediaType: "movie" | "episode" | "music" | "other"
   year?: number
   duration?: string // "1h 23m"
+  thumbUrl?: string // proxied poster/thumbnail URL
 }
 
 export interface RecentlyAddedItem {
@@ -15,6 +16,7 @@ export interface RecentlyAddedItem {
   mediaType: "movie" | "episode" | "music" | "other"
   addedAt: string // ISO date string
   year?: number
+  thumbUrl?: string
 }
 
 export interface MediaServerResponse {

@@ -34,6 +34,7 @@ export interface TlsResponse {
   headers: { get(name: string): string | null };
   text(): Promise<string>;
   json(): Promise<unknown>;
+  arrayBuffer(): Promise<ArrayBuffer>;
 }
 
 /**
@@ -66,6 +67,7 @@ export async function fetchWithTls(
   });
 
   const bodyText = raw.body;
+  const bodyBuffer = raw.rawBody;
   return {
     ok: raw.status >= 200 && raw.status < 300,
     status: raw.status,
@@ -78,6 +80,7 @@ export async function fetchWithTls(
     },
     text: async () => bodyText,
     json: async () => JSON.parse(bodyText),
+    arrayBuffer: async () => bodyBuffer.buffer.slice(bodyBuffer.byteOffset, bodyBuffer.byteOffset + bodyBuffer.byteLength) as ArrayBuffer,
   };
 }
 
@@ -93,7 +96,7 @@ function serviceFetch(
     body?: string;
     timeout: number;
   }
-): Promise<{ status: number; statusText: string; body: string; headers: Record<string, string> }> {
+): Promise<{ status: number; statusText: string; body: string; rawBody: Buffer; headers: Record<string, string> }> {
   return new Promise((resolve, reject) => {
     const parsed = new URL(url);
     const isHttps = parsed.protocol === "https:";
@@ -116,10 +119,12 @@ function serviceFetch(
             if (typeof v === "string") resHeaders[k] = v;
             else if (Array.isArray(v)) resHeaders[k] = v.join(", ");
           }
+          const rawBody = Buffer.concat(chunks);
           resolve({
             status: res.statusCode ?? 0,
             statusText: res.statusMessage ?? "",
-            body: Buffer.concat(chunks).toString("utf-8"),
+            body: rawBody.toString("utf-8"),
+            rawBody,
             headers: resHeaders,
           });
         });

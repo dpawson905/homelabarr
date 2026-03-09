@@ -354,6 +354,24 @@ export function MediaServerWidget({
   )
 }
 
+function MediaThumb({ src, alt }: { src?: string; alt: string }) {
+  const [error, setError] = useState(false)
+
+  if (!src || error) {
+    return null
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={alt}
+      className="size-9 shrink-0 rounded object-cover bg-muted"
+      onError={() => setError(true)}
+    />
+  )
+}
+
 function NowPlayingView({ items }: NowPlayingViewProps): React.ReactElement {
   if (items.length === 0) {
     return (
@@ -372,11 +390,7 @@ function NowPlayingView({ items }: NowPlayingViewProps): React.ReactElement {
           className="flex flex-col gap-1 px-3 py-2 border-b border-border"
         >
           <div className="flex items-center gap-2">
-            <HugeiconsIcon
-              icon={getMediaTypeIcon(item.mediaType)}
-              strokeWidth={2}
-              className="size-3.5 shrink-0 text-muted-foreground"
-            />
+            <MediaThumb src={item.thumbUrl} alt={item.title} />
             <div className="flex min-w-0 flex-1 flex-col">
               <span className="truncate text-xs font-medium text-foreground">{item.title}</span>
               {item.subtitle && (
@@ -421,11 +435,7 @@ function RecentlyAddedView({ items }: RecentlyAddedViewProps): React.ReactElemen
           key={`${item.title}-${item.addedAt}-${index}`}
           className="flex items-center gap-2 px-3 py-2 border-b border-border"
         >
-          <HugeiconsIcon
-            icon={getMediaTypeIcon(item.mediaType)}
-            strokeWidth={2}
-            className="size-3.5 shrink-0 text-muted-foreground"
-          />
+          <MediaThumb src={item.thumbUrl} alt={item.title} />
           <div className="flex min-w-0 flex-1 flex-col">
             <span className="truncate text-xs font-medium text-foreground">{item.title}</span>
             {item.subtitle && (
