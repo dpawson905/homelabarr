@@ -70,7 +70,7 @@ export async function setSessionCookie(
 
   cookieStore.set(SESSION_COOKIE_NAME, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: process.env.SECURE_COOKIES === "true",
     sameSite: "lax",
     path: "/",
     maxAge: duration / 1000,

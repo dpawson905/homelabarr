@@ -15,3 +15,5 @@ services:
       - PORT=3575
       # Uncomment and set to persist encryption key across rebuilds:
       # - ENCRYPTION_SECRET=change-me-to-a-long-random-string
+      # Set to "true" if accessing via HTTPS (e.g. behind a reverse proxy):
+      # - SECURE_COOKIES=true
