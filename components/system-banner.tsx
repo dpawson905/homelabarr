@@ -1,12 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-} from "recharts"
+import { useState, useEffect, useMemo } from "react"
+import { PieChart, Pie, Cell } from "recharts"
+import { type ChartConfig, ChartContainer } from "@/components/ui/chart"
 import { cn } from "@/lib/utils"
 
 interface Filesystem {
@@ -53,10 +49,10 @@ function formatUptime(seconds: number): string {
   return `${minutes}m`
 }
 
-function getGaugeColor(usage: number): string {
-  if (usage < 60) return "hsl(var(--chart-1))"
-  if (usage <= 85) return "hsl(var(--chart-4))"
-  return "hsl(142 0% 50%)"
+function getColorVar(usage: number): string {
+  if (usage < 60) return "var(--chart-1)"
+  if (usage <= 85) return "var(--chart-4)"
+  return "var(--destructive)"
 }
 
 function getBarColor(usage: number): string {
@@ -65,18 +61,30 @@ function getBarColor(usage: number): string {
   return "bg-destructive"
 }
 
-function RadialGauge({ value, label, subtitle }: { value: number; label: string; subtitle?: string }) {
+function RadialGauge({ value, label, subtitle, id }: { value: number; label: string; subtitle?: string; id: string }) {
   const clamped = Math.min(Math.max(value, 0), 100)
-  const color = getGaugeColor(clamped)
+  const colorVar = getColorVar(clamped)
+
+  const chartConfig = useMemo(() => ({
+    filled: {
+      label,
+      color: colorVar,
+    },
+    track: {
+      label: "Track",
+      color: "var(--border)",
+    },
+  } satisfies ChartConfig), [label, colorVar])
+
   const data = [
-    { value: clamped },
-    { value: 100 - clamped },
+    { name: "filled", value: clamped, fill: "var(--color-filled)" },
+    { name: "track", value: 100 - clamped, fill: "var(--color-track)" },
   ]
 
   return (
     <div className="flex flex-col items-center gap-1">
       <div className="relative size-28">
-        <ResponsiveContainer width="100%" height="100%">
+        <ChartContainer config={chartConfig} id={id} className="aspect-square size-full">
           <PieChart>
             <Pie
               data={data}
@@ -91,11 +99,12 @@ function RadialGauge({ value, label, subtitle }: { value: number; label: string;
               stroke="none"
               isAnimationActive={false}
             >
-              <Cell fill={color} />
-              <Cell fill="hsl(var(--muted))" />
+              {data.map((entry) => (
+                <Cell key={entry.name} fill={entry.fill} />
+              ))}
             </Pie>
           </PieChart>
-        </ResponsiveContainer>
+        </ChartContainer>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className="text-xl font-bold tabular-nums text-foreground">
             {clamped.toFixed(1)}%
@@ -185,11 +194,13 @@ export function SystemBanner() {
             value={data.cpu.usage}
             label="CPU"
             subtitle={`${data.system.cpuCores}C / ${data.system.cpuThreads}T`}
+            id="cpu-gauge"
           />
           <RadialGauge
             value={data.memory.usage}
             label="RAM"
             subtitle={`${formatBytes(data.memory.used)} / ${formatBytes(data.memory.total)}`}
+            id="ram-gauge"
           />
         </div>
 
@@ -258,7 +269,7 @@ export function SystemBanner() {
                   className="h-full rounded-full transition-all duration-500"
                   style={{
                     width: `${Math.min(load, 100)}%`,
-                    backgroundColor: getGaugeColor(load),
+                    backgroundColor: getColorVar(load),
                   }}
                 />
               </div>
