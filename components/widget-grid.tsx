@@ -152,7 +152,7 @@ export function WidgetGrid({ widgets: initialWidgets }: WidgetGridProps) {
     >
       {widgets.map((widget) => (
         <div key={widget.id} className="group relative h-full">
-          <div className="widget-drag-handle absolute inset-x-0 top-0 z-10 flex h-6 cursor-grab items-center justify-center rounded-t-lg opacity-0 transition-opacity group-hover:opacity-100">
+          <div className="widget-drag-handle absolute left-0 right-10 top-0 z-10 flex h-8 cursor-grab items-center justify-center rounded-tl-lg opacity-0 transition-opacity group-hover:opacity-100">
             <HugeiconsIcon
               icon={DragDropIcon}
               strokeWidth={2}
