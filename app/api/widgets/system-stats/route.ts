@@ -23,9 +23,17 @@ export async function GET(): Promise<NextResponse> {
       usage: (mem.used / mem.total) * 100,
     }
 
-    // Disk metrics — aggregate all mounted filesystems, filter out size === 0
-    const validFs = fsSize.filter((fs) => fs.size > 0)
-    const { diskUsed, diskSize } = validFs.reduce(
+    // Disk metrics — filter to real filesystems and deduplicate by device
+    const realFsTypes = new Set(["ext2", "ext3", "ext4", "xfs", "btrfs", "zfs", "ntfs", "vfat", "fat32", "apfs", "hfs+"])
+    const validFs = fsSize.filter((fs) => fs.size > 0 && realFsTypes.has(fs.type.toLowerCase()))
+    // Deduplicate by device to avoid counting the same physical disk multiple times
+    const seen = new Set<string>()
+    const uniqueFs = validFs.filter((fs) => {
+      if (seen.has(fs.fs)) return false
+      seen.add(fs.fs)
+      return true
+    })
+    const { diskUsed, diskSize } = uniqueFs.reduce(
       (acc, fs) => ({ diskUsed: acc.diskUsed + fs.used, diskSize: acc.diskSize + fs.size }),
       { diskUsed: 0, diskSize: 0 }
     )
@@ -33,8 +41,9 @@ export async function GET(): Promise<NextResponse> {
       used: diskUsed,
       total: diskSize,
       usage: diskSize > 0 ? (diskUsed / diskSize) * 100 : 0,
-      filesystems: validFs.map((fs) => ({
+      filesystems: uniqueFs.map((fs) => ({
         mount: fs.mount,
+        type: fs.type,
         used: fs.used,
         size: fs.size,
         usage: fs.use,
