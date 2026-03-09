@@ -135,7 +135,7 @@ export function SystemBanner() {
     }
 
     fetchStats()
-    const interval = setInterval(fetchStats, 5000)
+    const interval = setInterval(fetchStats, 2000)
     return () => {
       mounted = false
       clearInterval(interval)
