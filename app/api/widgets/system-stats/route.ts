@@ -16,11 +16,12 @@ export async function GET(): Promise<NextResponse> {
       cores: currentLoad.cpus.map((c) => c.load),
     }
 
-    // Memory metrics
+    // Memory metrics — use active (excludes buffers/cache) to match htop
+    const memUsed = mem.active
     const memory = {
-      used: mem.used,
+      used: memUsed,
       total: mem.total,
-      usage: (mem.used / mem.total) * 100,
+      usage: (memUsed / mem.total) * 100,
     }
 
     // Disk metrics — filter to real filesystems and deduplicate by device
