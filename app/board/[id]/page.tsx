@@ -12,12 +12,16 @@ type PageProps = {
 }
 
 export default async function BoardPage({ params }: PageProps) {
+  console.log("[board/page] Rendering board page")
   const { id } = await params
+  console.log(`[board/page] Board ID: ${id}`)
   const board = getBoardById(id)
 
   if (!board) {
+    console.log(`[board/page] Board not found: ${id}`)
     notFound()
   }
+  console.log(`[board/page] Board found: ${board.name}`)
 
   const widgets = getWidgetsByBoardId(id)
 
