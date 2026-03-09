@@ -14,11 +14,16 @@ type PageProps = {
 export default async function BoardPage({ params }: PageProps) {
   console.log("[board/page] Rendering board page")
   const { id } = await params
-  console.log(`[board/page] Board ID: ${id}`)
+  console.log(`[board/page] Board ID: "${id}" (length: ${id.length}, charCodes: ${[...id].slice(0, 5).map(c => c.charCodeAt(0)).join(',')})`)
   const board = getBoardById(id)
+  console.log(`[board/page] getBoardById result:`, board)
 
   if (!board) {
-    console.log(`[board/page] Board not found: ${id}`)
+    // Debug: list all boards to compare
+    const { getBoards } = await import("@/lib/db/queries")
+    const allBoards = getBoards()
+    console.log(`[board/page] All boards:`, allBoards.map(b => ({ id: b.id, name: b.name })))
+    console.log(`[board/page] Board not found: "${id}"`)
     notFound()
   }
   console.log(`[board/page] Board found: ${board.name}`)
