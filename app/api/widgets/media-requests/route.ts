@@ -17,22 +17,31 @@ function parseYear(dateStr: unknown): number | undefined {
   return Number.isNaN(year) ? undefined : year
 }
 
+interface OverseerrMedia {
+  id: number
+  tmdbId?: number
+  mediaType?: string
+}
+
 interface OverseerrRequest {
   id: number
   type: string
   status: number
   createdAt: string
-  media?: {
-    title?: string
-    name?: string
-    originalTitle?: string
-    releaseDate?: string
-    firstAirDate?: string
-  }
+  media?: OverseerrMedia
   requestedBy?: {
     displayName?: string
     email?: string
   }
+}
+
+interface MediaDetails {
+  title?: string
+  name?: string
+  originalTitle?: string
+  originalName?: string
+  releaseDate?: string
+  firstAirDate?: string
 }
 
 interface OverseerrRequestListResponse {
@@ -48,13 +57,17 @@ interface OverseerrCountResponse {
   total: number
 }
 
-function mapRequest(req: OverseerrRequest): MediaRequest {
+function mapRequest(
+  req: OverseerrRequest,
+  details?: MediaDetails
+): MediaRequest {
   return {
     id: req.id,
     title:
-      req.media?.title ??
-      req.media?.name ??
-      req.media?.originalTitle ??
+      details?.title ??
+      details?.name ??
+      details?.originalTitle ??
+      details?.originalName ??
       `Request #${req.id}`,
     mediaType: req.type === "movie" ? "movie" : "tv",
     status: STATUS_MAP[req.status] ?? "pending",
@@ -63,7 +76,7 @@ function mapRequest(req: OverseerrRequest): MediaRequest {
       req.requestedBy?.email ??
       "Unknown",
     requestedAt: req.createdAt,
-    year: parseYear(req.media?.releaseDate) ?? parseYear(req.media?.firstAirDate),
+    year: parseYear(details?.releaseDate) ?? parseYear(details?.firstAirDate),
   }
 }
 
@@ -128,8 +141,46 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     ? countsResult.data
     : { pending: 0, approved: 0, processing: 0, available: 0, total: 0 }
 
+  // Fetch media details (title, year) for each request via tmdbId
+  const results = requestsResult.data.results
+  const detailsMap = new Map<string, MediaDetails>()
+
+  // Deduplicate by mediaType+tmdbId to avoid redundant calls
+  const uniqueMedia = new Map<string, { type: string; tmdbId: number }>()
+  for (const req of results) {
+    const tmdbId = req.media?.tmdbId
+    if (tmdbId) {
+      const mediaType = req.type === "movie" ? "movie" : "tv"
+      const key = `${mediaType}:${tmdbId}`
+      uniqueMedia.set(key, { type: mediaType, tmdbId })
+    }
+  }
+
+  const detailFetches = Array.from(uniqueMedia.entries()).map(
+    async ([key, { type, tmdbId }]) => {
+      const result = await fetchService<MediaDetails>({
+        baseUrl: serviceUrl,
+        apiKey,
+        endpoint: `/api/v1/${type}/${tmdbId}`,
+        authType: "header-x-api-key",
+      })
+      if (result.ok) {
+        detailsMap.set(key, result.data)
+      }
+    }
+  )
+  await Promise.all(detailFetches)
+
+  const requests = results.map((req) => {
+    const tmdbId = req.media?.tmdbId
+    const mediaType = req.type === "movie" ? "movie" : "tv"
+    const key = tmdbId ? `${mediaType}:${tmdbId}` : undefined
+    const details = key ? detailsMap.get(key) : undefined
+    return mapRequest(req, details)
+  })
+
   return NextResponse.json(
-    { requests: requestsResult.data.results.map(mapRequest), counts },
+    { requests, counts },
     { headers: { "Cache-Control": "no-store" } }
   )
 }
