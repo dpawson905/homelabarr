@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic"
 
-import { notFound } from "next/navigation"
-import { getBoardById, getWidgetsByBoardId } from "@/lib/db/queries"
+import { notFound, redirect } from "next/navigation"
+import { getBoardById, getWidgetsByBoardId, getDefaultBoardId } from "@/lib/db/queries"
 import { WidgetGrid } from "@/components/widget-grid"
 import { SystemBanner } from "@/components/system-banner"
 import { AddWidgetButton } from "./add-widget-button"
@@ -16,6 +16,10 @@ export default async function BoardPage({ params }: PageProps) {
   const board = getBoardById(id)
 
   if (!board) {
+    const fallbackId = getDefaultBoardId()
+    if (fallbackId) {
+      redirect(`/board/${fallbackId}`)
+    }
     notFound()
   }
 
