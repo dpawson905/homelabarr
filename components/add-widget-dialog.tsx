@@ -40,6 +40,7 @@ import {
   ServerStack01Icon,
   ChartLineData01Icon,
   Wifi01Icon,
+  CloudIcon,
 } from "@hugeicons/core-free-icons"
 import {
   Dialog,
@@ -73,6 +74,7 @@ const WIDGET_CATEGORIES: WidgetCategory[] = [
       { type: "search",     name: "Search",      description: "Search across your apps",            icon: Search01Icon     },
       { type: "clock",      name: "Clock",       description: "Current time and date",              icon: Clock01Icon      },
       { type: "weather",    name: "Weather",     description: "Local weather conditions",           icon: Sun01Icon        },
+      { type: "tempest",   name: "Tempest",     description: "WeatherFlow Tempest station",       icon: CloudIcon        },
       { type: "notes",      name: "Notes",       description: "Jot down quick notes",              icon: Note01Icon       },
       { type: "calendar",   name: "Calendar",    description: "Upcoming events and deadlines",     icon: Calendar01Icon   },
       { type: "rss-feed",   name: "RSS Feed",    description: "Follow your favorite feeds",        icon: RssIcon          },
@@ -176,6 +178,7 @@ const WIDGET_DEFAULT_SIZES: Record<string, { w: number; h: number }> = {
   "server-power":     { w: 3, h: 3 },
   prometheus:         { w: 4, h: 4 },
   "wake-on-lan":      { w: 3, h: 2 },
+  tempest:            { w: 3, h: 4 },
 }
 
 interface AddWidgetDialogProps {

@@ -35,6 +35,7 @@ import { FrigateWidget } from "@/components/widgets/frigate-widget"
 import { ServerPowerWidget } from "@/components/widgets/server-power-widget"
 import { PrometheusWidget } from "@/components/widgets/prometheus-widget"
 import { WakeOnLanWidget } from "@/components/widgets/wake-on-lan-widget"
+import { TempestWidget } from "@/components/widgets/tempest-widget"
 
 interface WidgetRendererProps {
   type: string
@@ -114,6 +115,8 @@ export function WidgetRenderer({ type, widgetId, config, onDelete }: WidgetRende
       return <PrometheusWidget widgetId={widgetId} config={c} onDelete={onDelete} />
     case "wake-on-lan":
       return <WakeOnLanWidget widgetId={widgetId} config={c} onDelete={onDelete} />
+    case "tempest":
+      return <TempestWidget widgetId={widgetId} config={c} onDelete={onDelete} />
     default:
       return <WidgetPlaceholder type={type} />
   }
