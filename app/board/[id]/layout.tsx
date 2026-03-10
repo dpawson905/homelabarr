@@ -18,11 +18,8 @@ type LayoutProps = {
 }
 
 export default async function BoardLayout({ params, children }: LayoutProps) {
-  console.log("[board/layout] Rendering board layout")
   const { id } = await params
-  console.log(`[board/layout] Board ID: ${id}`)
   const boards = getBoards()
-  console.log(`[board/layout] Found ${boards.length} boards`)
   const activeBoard = boards.find((b) => b.id === id)
 
   return (

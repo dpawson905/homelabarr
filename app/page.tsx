@@ -5,10 +5,8 @@ export const dynamic = "force-dynamic"
 
 export default function Page() {
   const defaultBoardId = getDefaultBoardId()
-  console.log(`[root/page] Default board ID: ${defaultBoardId}`)
 
   if (defaultBoardId) {
-    console.log(`[root/page] Redirecting to /board/${defaultBoardId}`)
     redirect(`/board/${defaultBoardId}`)
   }
 
