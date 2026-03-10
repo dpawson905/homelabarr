@@ -8,10 +8,34 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { dirname } from "path";
 
 const KEY_FILE_PATH = "./data/.encryption-key";
-const SALT = "homelabarr-secrets-salt";
+const SALT_FILE_PATH = "./data/.encryption-salt";
 const KEY_LENGTH = 32;
+const SALT_LENGTH = 16;
 
 let cachedKey: Buffer | null = null;
+
+/**
+ * Returns a per-installation random salt, persisted to disk.
+ * Falls back to a static salt for existing installations that don't
+ * yet have a salt file (to avoid breaking existing encrypted data).
+ */
+function getSalt(): string {
+  if (existsSync(SALT_FILE_PATH)) {
+    return readFileSync(SALT_FILE_PATH, "utf-8").trim();
+  }
+
+  // For existing installations that already have an encryption key but
+  // no salt file, keep the legacy static salt to avoid breaking decryption.
+  if (existsSync(KEY_FILE_PATH) || process.env.ENCRYPTION_SECRET) {
+    return "homelabarr-secrets-salt";
+  }
+
+  // New installation: generate a random salt and persist it
+  const salt = randomBytes(SALT_LENGTH).toString("hex");
+  mkdirSync(dirname(SALT_FILE_PATH), { recursive: true });
+  writeFileSync(SALT_FILE_PATH, salt, { mode: 0o600 });
+  return salt;
+}
 
 /**
  * Derives a 32-byte encryption key using scryptSync.
@@ -38,7 +62,7 @@ export function getEncryptionKey(): Buffer {
     writeFileSync(KEY_FILE_PATH, secret, { mode: 0o600 });
   }
 
-  cachedKey = scryptSync(secret, SALT, KEY_LENGTH);
+  cachedKey = scryptSync(secret, getSalt(), KEY_LENGTH);
   return cachedKey;
 }
 

@@ -3,6 +3,35 @@ import { getWidgetWithConfig } from "@/app/api/widgets/helpers"
 import { getServiceConnection } from "@/lib/services/service-client"
 import { fetchWithTls } from "@/lib/services/service-client"
 
+/**
+ * Validate that a thumb path is safe to use with a given service URL.
+ * Prevents SSRF and API key exfiltration by ensuring the resolved URL
+ * always points back to the configured service origin.
+ */
+function validateThumbUrl(
+  serviceType: string,
+  serviceUrl: string,
+  thumbPath: string
+): string | null {
+  try {
+    if (serviceType === "plex") {
+      // Plex paths must be relative (start with /, no protocol, no .., no @)
+      if (!/^\/[\w/.-]+$/.test(thumbPath)) return null
+      if (thumbPath.includes("..")) return null
+      const resolved = new URL(thumbPath, serviceUrl)
+      if (resolved.origin !== new URL(serviceUrl).origin) return null
+      return resolved.toString()
+    } else {
+      // Jellyfin: thumbPath is a full URL — must match the configured service origin
+      const resolved = new URL(thumbPath)
+      if (resolved.origin !== new URL(serviceUrl).origin) return null
+      return resolved.toString()
+    }
+  } catch {
+    return null
+  }
+}
+
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const url = new URL(request.url)
   const widgetId = url.searchParams.get("widgetId")
@@ -27,18 +56,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const { serviceUrl, apiKey } = connection
 
-  try {
-    let imageUrl: string
+  const validatedUrl = validateThumbUrl(serviceType, serviceUrl, thumbPath)
+  if (!validatedUrl) {
+    return new NextResponse("Invalid thumbnail path", { status: 400 })
+  }
 
-    if (serviceType === "plex") {
-      // Plex: thumbPath is like /library/metadata/123/thumb/456
-      const sep = thumbPath.includes("?") ? "&" : "?"
-      imageUrl = `${serviceUrl}${thumbPath}${sep}X-Plex-Token=${apiKey}`
-    } else {
-      // Jellyfin: thumbPath is already a full URL with query params
-      const sep = thumbPath.includes("?") ? "&" : "?"
-      imageUrl = `${thumbPath}${sep}api_key=${apiKey}`
-    }
+  try {
+    // Append auth token to the validated URL
+    const sep = validatedUrl.includes("?") ? "&" : "?"
+    const imageUrl =
+      serviceType === "plex"
+        ? `${validatedUrl}${sep}X-Plex-Token=${apiKey}`
+        : `${validatedUrl}${sep}api_key=${apiKey}`
 
     const res = await fetchWithTls(imageUrl)
 

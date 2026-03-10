@@ -83,7 +83,9 @@ function mapRequest(
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const url = new URL(request.url)
   const widgetId = url.searchParams.get("widgetId")
-  const filter = url.searchParams.get("filter") ?? "all"
+  const VALID_FILTERS = new Set(["all", "pending", "approved", "available", "declined", "processing"])
+  const rawFilter = url.searchParams.get("filter") ?? "all"
+  const filter = VALID_FILTERS.has(rawFilter) ? rawFilter : "all"
 
   if (!widgetId) {
     return NextResponse.json(
@@ -156,20 +158,25 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
   }
 
-  const detailFetches = Array.from(uniqueMedia.entries()).map(
-    async ([key, { type, tmdbId }]) => {
-      const result = await fetchService<MediaDetails>({
-        baseUrl: serviceUrl,
-        apiKey,
-        endpoint: `/api/v1/${type}/${tmdbId}`,
-        authType: "header-x-api-key",
+  // Fetch details in batches of 5 to avoid overwhelming Seerr
+  const BATCH_SIZE = 5
+  const entries = Array.from(uniqueMedia.entries())
+  for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+    const batch = entries.slice(i, i + BATCH_SIZE)
+    await Promise.all(
+      batch.map(async ([key, { type, tmdbId }]) => {
+        const result = await fetchService<MediaDetails>({
+          baseUrl: serviceUrl,
+          apiKey,
+          endpoint: `/api/v1/${type}/${tmdbId}`,
+          authType: "header-x-api-key",
+        })
+        if (result.ok) {
+          detailsMap.set(key, result.data)
+        }
       })
-      if (result.ok) {
-        detailsMap.set(key, result.data)
-      }
-    }
-  )
-  await Promise.all(detailFetches)
+    )
+  }
 
   const requests = results.map((req) => {
     const tmdbId = req.media?.tmdbId

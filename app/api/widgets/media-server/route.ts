@@ -165,7 +165,7 @@ async function fetchPlexRecentlyAdded(baseUrl: string, apiKey: string, widgetId:
   })
 }
 
-async function fetchJellyfinNowPlaying(baseUrl: string, apiKey: string): Promise<NowPlayingItem[]> {
+async function fetchJellyfinNowPlaying(baseUrl: string, apiKey: string, widgetId: string): Promise<NowPlayingItem[]> {
   const result = await fetchService<JellyfinSession[]>({
     baseUrl,
     apiKey,
@@ -184,6 +184,7 @@ async function fetchJellyfinNowPlaying(baseUrl: string, apiKey: string): Promise
       const item = session.NowPlayingItem!
       const runTimeTicks = item.RunTimeTicks ?? 0
       const positionTicks = session.PlayState?.PositionTicks ?? 0
+      const thumb = jellyfinThumbPath(baseUrl, item)
 
       return {
         title: item.Name ?? "Unknown",
@@ -195,12 +196,12 @@ async function fetchJellyfinNowPlaying(baseUrl: string, apiKey: string): Promise
         mediaType: mapJellyfinMediaType(item.Type ?? ""),
         year: item.ProductionYear,
         duration: runTimeTicks > 0 ? formatDuration(runTimeTicks / 10_000) : undefined,
-        thumbUrl: jellyfinThumbPath(baseUrl, item),
+        thumbUrl: thumb ? buildThumbProxyUrl(widgetId, thumb) : undefined,
       }
     })
 }
 
-async function fetchJellyfinRecentlyAdded(baseUrl: string, apiKey: string): Promise<RecentlyAddedItem[]> {
+async function fetchJellyfinRecentlyAdded(baseUrl: string, apiKey: string, widgetId: string): Promise<RecentlyAddedItem[]> {
   const result = await fetchService<JellyfinLatestItem[]>({
     baseUrl,
     apiKey,
@@ -218,14 +219,17 @@ async function fetchJellyfinRecentlyAdded(baseUrl: string, apiKey: string): Prom
   const items = result.data
   if (!Array.isArray(items)) return []
 
-  return items.map((item) => ({
-    title: item.Name ?? "Unknown",
-    subtitle: item.SeriesName ?? "",
-    mediaType: mapJellyfinMediaType(item.Type ?? ""),
-    addedAt: item.DateCreated ?? item.PremiereDate ?? "",
-    year: item.ProductionYear,
-    thumbUrl: jellyfinThumbPath(baseUrl, item),
-  }))
+  return items.map((item) => {
+    const thumb = jellyfinThumbPath(baseUrl, item)
+    return {
+      title: item.Name ?? "Unknown",
+      subtitle: item.SeriesName ?? "",
+      mediaType: mapJellyfinMediaType(item.Type ?? ""),
+      addedAt: item.DateCreated ?? item.PremiereDate ?? "",
+      year: item.ProductionYear,
+      thumbUrl: thumb ? buildThumbProxyUrl(widgetId, thumb) : undefined,
+    }
+  })
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -268,8 +272,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           fetchPlexRecentlyAdded(serviceUrl, apiKey, widgetId),
         ])
       : await Promise.all([
-          fetchJellyfinNowPlaying(serviceUrl, apiKey),
-          fetchJellyfinRecentlyAdded(serviceUrl, apiKey),
+          fetchJellyfinNowPlaying(serviceUrl, apiKey, widgetId),
+          fetchJellyfinRecentlyAdded(serviceUrl, apiKey, widgetId),
         ])
 
   const response: MediaServerResponse = {
