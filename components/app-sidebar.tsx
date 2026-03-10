@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
+/* eslint-disable @next/next/no-img-element */
 import {
   Sidebar,
   SidebarContent,
@@ -55,16 +56,15 @@ export function AppSidebar({ boards, activeBoardId, ...props }: AppSidebarProps)
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader className="p-4 group-data-[collapsible=icon]:p-2">
-        <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
-          <span className="size-2 shrink-0 rounded-full bg-primary animate-pulse" />
-          <div className="flex flex-col gap-0.5 group-data-[collapsible=icon]:hidden">
-            <span className="text-primary text-base font-bold tracking-tight">
-              Homelabarr
-            </span>
-            <span className="text-muted-foreground text-xs">
-              Homelab Dashboard
-            </span>
-          </div>
+        <div className="flex flex-col items-center justify-center gap-1 group-data-[collapsible=icon]:gap-0">
+          <img
+            src="/favicon.png"
+            alt="Homelabarr"
+            className="h-20 w-20 group-data-[collapsible=icon]:h-7 group-data-[collapsible=icon]:w-7"
+          />
+          <span className="text-sm font-bold tracking-tight text-foreground group-data-[collapsible=icon]:hidden">
+            Homelabarr
+          </span>
         </div>
       </SidebarHeader>
 

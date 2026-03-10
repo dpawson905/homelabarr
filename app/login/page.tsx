@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+/* eslint-disable @next/next/no-img-element */
 
 type AuthState = "loading" | "login" | "setup";
 
@@ -176,19 +177,21 @@ export default function LoginPage() {
   return (
     <div className="min-h-svh flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm">
-        <div className="mb-6 flex flex-col items-center gap-2">
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-3 w-3">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
-              <span className="relative inline-flex h-3 w-3 rounded-full bg-primary" />
-            </span>
+        <div className="mb-6 flex flex-col items-center gap-3">
+          <img
+            src="/favicon.png"
+            alt="Homelabarr"
+            width={48}
+            height={48}
+          />
+          <div className="flex flex-col items-center gap-1">
             <h1 className="text-xl font-bold tracking-tight text-foreground">
               Homelabarr
             </h1>
+            <p className="text-xs text-muted-foreground">
+              Self-hosted homelab dashboard
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Self-hosted homelab dashboard
-          </p>
         </div>
 
         {authState === "loading" && (
