@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getWidgetWithConfig } from "@/app/api/widgets/helpers"
-import { getServiceConnection, fetchService } from "@/lib/services/service-client"
+import { getServiceConnection } from "@/lib/services/service-client"
+import { truenasRpc } from "@/lib/services/truenas-rpc"
 import type { TruenasPool, TruenasResponse } from "./types"
 
 interface SystemInfo {
@@ -63,61 +64,41 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const { serviceUrl, apiKey } = connection
 
-  const [systemResult, poolsResult, datasetsResult, alertsResult] =
-    await Promise.all([
-      fetchService<SystemInfo>({
-        baseUrl: serviceUrl,
-        apiKey,
-        endpoint: "/api/v2.0/system/info",
-        authType: "header-bearer",
-      }),
-      fetchService<PoolData[]>({
-        baseUrl: serviceUrl,
-        apiKey,
-        endpoint: "/api/v2.0/pool",
-        authType: "header-bearer",
-      }),
-      fetchService<DatasetData[]>({
-        baseUrl: serviceUrl,
-        apiKey,
-        endpoint: "/api/v2.0/pool/dataset",
-        authType: "header-bearer",
-        queryParams: { extra: "true" },
-      }),
-      fetchService<AlertData[]>({
-        baseUrl: serviceUrl,
-        apiKey,
-        endpoint: "/api/v2.0/alert/list",
-        authType: "header-bearer",
-      }),
-    ])
+  const result = await truenasRpc(serviceUrl, apiKey, [
+    { method: "system.info" },
+    { method: "pool.query" },
+    { method: "pool.dataset.query", params: [[], { extra: { properties: ["used", "available"] } }] },
+    { method: "alert.list" },
+  ])
 
-  if (!systemResult.ok) {
+  if (!result.ok) {
     return NextResponse.json(
-      { error: systemResult.error },
-      { status: systemResult.status ?? 502 }
+      { error: result.error },
+      { status: 502 }
     )
   }
 
-  if (!poolsResult.ok) {
+  const { results } = result
+
+  const systemInfo = results.get("system.info") as SystemInfo | undefined
+  if (!systemInfo) {
     return NextResponse.json(
-      { error: poolsResult.error },
-      { status: poolsResult.status ?? 502 }
+      { error: "Failed to get system info from TrueNAS" },
+      { status: 502 }
     )
   }
 
-  const systemInfo = systemResult.data
-  const poolsData = poolsResult.data
+  const poolsData = (results.get("pool.query") as PoolData[] | undefined) ?? []
+  const datasetsData = (results.get("pool.dataset.query") as DatasetData[] | undefined) ?? []
+  const alertsData = (results.get("alert.list") as AlertData[] | undefined) ?? []
 
   // Build a map of dataset usage by pool name
   const datasetMap = new Map<string, { used: number; available: number }>()
-  if (datasetsResult.ok) {
-    for (const ds of datasetsResult.data) {
-      if (ds.pool && !datasetMap.has(ds.pool)) {
-        const used = parseInt(ds.used.rawvalue, 10) || 0
-        const available = parseInt(ds.available.rawvalue, 10) || 0
-        datasetMap.set(ds.pool, { used, available })
-      }
+  for (const ds of datasetsData) {
+    if (ds.pool && !datasetMap.has(ds.pool)) {
+      const used = parseInt(ds.used.rawvalue, 10) || 0
+      const available = parseInt(ds.available.rawvalue, 10) || 0
+      datasetMap.set(ds.pool, { used, available })
     }
   }
 
@@ -152,14 +133,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   // Count undismissed alerts by severity
   const alerts = { info: 0, warning: 0, critical: 0 }
-  if (alertsResult.ok) {
-    for (const alert of alertsResult.data) {
-      if (alert.dismissed) continue
-      const level = alert.level?.toUpperCase()
-      if (level === "INFO") alerts.info++
-      else if (level === "WARNING") alerts.warning++
-      else if (level === "CRITICAL") alerts.critical++
-    }
+  for (const alert of alertsData) {
+    if (alert.dismissed) continue
+    const level = alert.level?.toUpperCase()
+    if (level === "INFO") alerts.info++
+    else if (level === "WARNING") alerts.warning++
+    else if (level === "CRITICAL") alerts.critical++
   }
 
   const response: TruenasResponse = {

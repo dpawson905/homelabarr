@@ -39,6 +39,8 @@ COPY --from=builder /app/entrypoint.sh ./entrypoint.sh
 COPY --from=builder /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
 COPY --from=builder /app/node_modules/bindings ./node_modules/bindings
 COPY --from=builder /app/node_modules/file-uri-to-path ./node_modules/file-uri-to-path
+# ws: WebSocket client for TrueNAS JSON-RPC API
+COPY --from=builder /app/node_modules/ws ./node_modules/ws
 
 EXPOSE 3575
 
