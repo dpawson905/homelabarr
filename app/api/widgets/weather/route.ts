@@ -129,7 +129,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             day: new Date(d.day_start_local * 1000).toISOString().split("T")[0],
             tempHigh: Math.round(d.air_temp_high),
             tempLow: Math.round(d.air_temp_low),
-            precip: Math.round(d.precip * 100) / 100,
+            precip: Math.round((d.precip ?? 0) * 100) / 100,
             precipProbability: d.precip_probability,
             icon: d.icon,
             conditions: d.conditions,
