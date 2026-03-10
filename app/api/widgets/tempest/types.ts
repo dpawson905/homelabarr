@@ -1,4 +1,4 @@
-export interface WeatherResponse {
+export interface TempestResponse {
   station: {
     name: string
     stationId: number
@@ -67,7 +67,7 @@ export interface TempestForecastDay {
   day_start_local: number // epoch
   air_temp_high: number // °C
   air_temp_low: number // °C
-  precip: number // mm
+  precip?: number // mm — may not be present on daily objects
   precip_probability: number // %
   icon: string
   conditions: string
