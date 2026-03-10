@@ -101,7 +101,7 @@ const WIDGET_CATEGORIES: WidgetCategory[] = [
       { type: "media-server",     name: "Media Server",     description: "Now playing & recently added",   icon: Tv01Icon      },
       { type: "media-management", name: "Media Management", description: "Sonarr/Radarr calendar & queue", icon: Film01Icon    },
       { type: "download-client",  name: "Download Client",  description: "Active downloads & stats",       icon: Download01Icon},
-      { type: "media-requests",   name: "Media Requests",   description: "Overseerr/Jellyseerr requests",  icon: InboxIcon     },
+      { type: "media-requests",   name: "Media Requests",   description: "Seerr media requests",  icon: InboxIcon     },
       { type: "immich",           name: "Immich",           description: "Photo & video library",          icon: Image01Icon   },
     ],
   },

@@ -37,7 +37,7 @@ interface IconGridProps {
 type IconResult = { ref: string; title: string; hex?: string }
 
 const POPULAR_BRANDS: IconResult[] = [
-  "plex", "jellyfin", "sonarr", "radarr", "overseerr", "qbittorrent",
+  "plex", "jellyfin", "sonarr", "radarr", "seerr", "overseerr", "qbittorrent",
   "sabnzbd", "pihole", "adguard", "homeassistant", "proxmox", "uptimekuma",
   "docker", "portainer", "nginx", "grafana", "nextcloud", "gitea",
   "vaultwarden", "paperlessngx", "traefik", "caddy", "wireguard", "tailscale",
