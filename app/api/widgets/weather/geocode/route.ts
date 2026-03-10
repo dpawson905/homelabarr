@@ -1,31 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getWidgetWithConfig } from "@/app/api/widgets/helpers"
 import { resolveSecret } from "@/lib/services/service-client"
 import type { OWMGeocodingResult } from "../types"
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const { searchParams } = request.nextUrl
   const query = searchParams.get("q")
-  const widgetId = searchParams.get("widgetId")
+  const secretName = searchParams.get("secretName")
 
-  if (!query || !widgetId) {
+  if (!query || !secretName) {
     return NextResponse.json(
-      { error: "Missing required parameters: q, widgetId" },
-      { status: 400 }
-    )
-  }
-
-  const widget = getWidgetWithConfig(widgetId)
-  if (!widget) {
-    return NextResponse.json({ error: "Widget not found" }, { status: 404 })
-  }
-
-  const config = widget.config as Record<string, unknown> | null
-  const secretName = config?.secretName as string | undefined
-
-  if (!secretName) {
-    return NextResponse.json(
-      { error: "API key not configured. Add your OpenWeatherMap API key secret first." },
+      { error: "Missing required parameters: q, secretName" },
       { status: 400 }
     )
   }

@@ -172,7 +172,7 @@ export function WeatherWidget({ widgetId, config, onDelete }: WeatherWidgetProps
     try {
       const params = new URLSearchParams({
         q: searchQuery.trim(),
-        widgetId,
+        secretName: settingsSecretName,
       })
       const res = await fetch(`/api/widgets/weather/geocode?${params}`)
       if (res.ok) {
