@@ -70,12 +70,13 @@ async function buildContainerData(
   }
 }
 
+const DOCKER_SOCKET_PATH = process.env.DOCKER_SOCKET_PATH ?? "/var/run/docker.sock"
+
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const url = new URL(request.url)
-  const socketPath = url.searchParams.get("socketPath") ?? "/var/run/docker.sock"
   const showAll = url.searchParams.get("all") === "true"
 
-  const docker = new Dockerode({ socketPath })
+  const docker = new Dockerode({ socketPath: DOCKER_SOCKET_PATH })
 
   try {
     await docker.ping()

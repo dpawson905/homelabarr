@@ -51,7 +51,6 @@ function getStatusColor(state: string): string {
 
 export function DockerWidget({ widgetId, config, onDelete }: DockerWidgetProps): React.ReactElement {
   const [savedConfig, setSavedConfig] = useState({
-    socketPath: (config?.socketPath as string) ?? "/var/run/docker.sock",
     showStopped: (config?.showStopped as boolean) ?? false,
     refreshInterval: (config?.refreshInterval as number) ?? 10,
   })
@@ -62,7 +61,6 @@ export function DockerWidget({ widgetId, config, onDelete }: DockerWidgetProps):
   const [showSettings, setShowSettings] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
-  const [settingsSocketPath, setSettingsSocketPath] = useState(savedConfig.socketPath)
   const [settingsShowStopped, setSettingsShowStopped] = useState(savedConfig.showStopped)
   const [settingsRefreshInterval, setSettingsRefreshInterval] = useState(savedConfig.refreshInterval)
   const [saving, setSaving] = useState(false)
@@ -70,19 +68,16 @@ export function DockerWidget({ widgetId, config, onDelete }: DockerWidgetProps):
   // Keep settings form in sync when saved config propagates back via props
   useEffect(() => {
     const incoming = {
-      socketPath: (config?.socketPath as string) ?? "/var/run/docker.sock",
       showStopped: (config?.showStopped as boolean) ?? false,
       refreshInterval: (config?.refreshInterval as number) ?? 10,
     }
     setSavedConfig(incoming)
-    setSettingsSocketPath(incoming.socketPath)
     setSettingsShowStopped(incoming.showStopped)
     setSettingsRefreshInterval(incoming.refreshInterval)
   }, [config])
 
   const fetchContainers = useCallback(async () => {
     const params = new URLSearchParams()
-    if (savedConfig.socketPath !== "/var/run/docker.sock") params.set("socketPath", savedConfig.socketPath)
     if (savedConfig.showStopped) params.set("all", "true")
 
     const query = params.toString()
@@ -110,7 +105,7 @@ export function DockerWidget({ widgetId, config, onDelete }: DockerWidgetProps):
     } finally {
       setLoading(false)
     }
-  }, [savedConfig.socketPath, savedConfig.showStopped])
+  }, [savedConfig.showStopped])
 
   useEffect(() => {
     setLoading(true)
@@ -126,7 +121,7 @@ export function DockerWidget({ widgetId, config, onDelete }: DockerWidgetProps):
       const res = await fetch(`/api/widgets/docker/${containerId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, socketPath: savedConfig.socketPath }),
+        body: JSON.stringify({ action }),
       })
 
       if (!res.ok) {
@@ -151,7 +146,6 @@ export function DockerWidget({ widgetId, config, onDelete }: DockerWidgetProps):
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           config: {
-            socketPath: settingsSocketPath,
             showStopped: settingsShowStopped,
             refreshInterval: settingsRefreshInterval,
           },
@@ -164,7 +158,6 @@ export function DockerWidget({ widgetId, config, onDelete }: DockerWidgetProps):
       }
 
       setSavedConfig({
-        socketPath: settingsSocketPath,
         showStopped: settingsShowStopped,
         refreshInterval: settingsRefreshInterval,
       })
@@ -184,16 +177,6 @@ export function DockerWidget({ widgetId, config, onDelete }: DockerWidgetProps):
       <div className="flex h-full w-full flex-col rounded-lg border border-border bg-card overflow-hidden">
         <WidgetHeader icon={ContainerTruckIcon} title="Docker" isSettings onSettingsClick={() => setShowSettings(false)} />
         <div className="flex-1 overflow-y-auto p-3 space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="docker-socket">Socket Path</Label>
-            <Input
-              id="docker-socket"
-              value={settingsSocketPath}
-              onChange={(e) => setSettingsSocketPath(e.target.value)}
-              placeholder="/var/run/docker.sock"
-            />
-          </div>
-
           <div className="flex items-center justify-between gap-2">
             <Label htmlFor="docker-show-stopped">Show stopped containers</Label>
             <Switch
@@ -240,8 +223,7 @@ export function DockerWidget({ widgetId, config, onDelete }: DockerWidgetProps):
           />
           <p className="text-sm font-medium text-muted-foreground">Cannot connect to Docker</p>
           <p className="text-center text-xs text-muted-foreground/70">
-            Make sure Docker is running and the socket is accessible at{" "}
-            <code className="rounded bg-muted px-1 py-0.5 text-[0.625rem]">{savedConfig.socketPath}</code>
+            Make sure Docker is running and the socket is accessible
           </p>
           <Button variant="outline" size="sm" onClick={() => setShowSettings(true)}>
             <HugeiconsIcon icon={Settings02Icon} strokeWidth={2} data-icon="inline-start" />

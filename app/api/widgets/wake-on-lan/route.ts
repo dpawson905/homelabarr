@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getWidgetWithConfig } from "../helpers"
-import { exec } from "child_process"
+import { execFile } from "child_process"
 import { promisify } from "util"
 import dgram from "dgram"
+
+const execFileAsync = promisify(execFile)
 import type {
   WolDeviceConfig,
   WolDeviceStatus,
@@ -10,16 +12,29 @@ import type {
   WolWakeRequest,
 } from "./types"
 
-const execAsync = promisify(exec)
-
 function parseDevices(config: Record<string, unknown> | null): WolDeviceConfig[] {
   if (!config || !Array.isArray(config.devices)) return []
   return config.devices as WolDeviceConfig[]
 }
 
+/** Strict IPv4/IPv6 validation to prevent command injection */
+function isValidIp(ip: string): boolean {
+  // IPv4
+  if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) {
+    return ip.split(".").every((octet) => {
+      const n = Number(octet)
+      return n >= 0 && n <= 255
+    })
+  }
+  // IPv6 (simplified — colons and hex digits only)
+  if (/^[0-9a-fA-F:]+$/.test(ip) && ip.includes(":")) return true
+  return false
+}
+
 async function checkOnline(ip: string): Promise<boolean> {
+  if (!isValidIp(ip)) return false
   try {
-    await execAsync(`ping -c 1 -W 2 ${ip}`, { timeout: 5000 })
+    await execFileAsync("ping", ["-c", "1", "-W", "2", ip], { timeout: 5000 })
     return true
   } catch {
     return false

@@ -5,12 +5,20 @@ import { eq } from "drizzle-orm";
 
 type RouteContext = { params: Promise<{ key: string }> };
 
+/** Settings that cannot be read or written via this endpoint */
+const PROTECTED_KEYS = new Set(["passwordHash"]);
+
 export async function GET(
   _request: NextRequest,
   { params }: RouteContext
 ): Promise<NextResponse> {
   try {
     const { key } = await params;
+
+    if (PROTECTED_KEYS.has(key)) {
+      return NextResponse.json({ error: "Setting not found" }, { status: 404 });
+    }
+
     const setting = db.select().from(settings).where(eq(settings.key, key)).get();
 
     if (!setting) {
@@ -30,6 +38,11 @@ export async function PUT(
 ): Promise<NextResponse> {
   try {
     const { key } = await params;
+
+    if (PROTECTED_KEYS.has(key)) {
+      return NextResponse.json({ error: "Cannot modify this setting" }, { status: 403 });
+    }
+
     const body = await request.json();
 
     if (body.value === undefined) {
