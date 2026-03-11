@@ -16,8 +16,14 @@ export function getDefaultBoardId(): string | null {
     .from(settings)
     .where(eq(settings.key, "defaultBoardId"))
     .get();
-  if (setting) return setting.value;
 
+  // Validate the saved default board still exists
+  if (setting) {
+    const board = db.select({ id: boards.id }).from(boards).where(eq(boards.id, setting.value)).get();
+    if (board) return board.id;
+  }
+
+  // Fall back to the first board
   const firstBoard = db
     .select({ id: boards.id })
     .from(boards)
