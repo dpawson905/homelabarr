@@ -33,7 +33,7 @@ export function proxy(request: NextRequest): NextResponse | Response | undefined
 
   // Page routes: redirect to login
   if (!isAuthenticated) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return NextResponse.redirect(new URL("/login", request.nextUrl));
   }
 
   return NextResponse.next();
@@ -49,6 +49,6 @@ export const config = {
      * - /_next (Next.js internals)
      * - /favicon.ico
      */
-    "/((?!login|api/auth|api/icons|_next|favicon\\.ico).*)",
+    "/((?!login|api/auth|api/icons|_next/static|_next/image|.*\\.png$|.*\\.ico$).*)",
   ],
 };
