@@ -18,9 +18,14 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app
 
+# ── Default environment variables (override via docker-compose or docker run -e) ──
 ENV NODE_ENV=production
 ENV PORT=3575
 ENV HOSTNAME=0.0.0.0
+# SECURE_COOKIES    – set to "true" when behind HTTPS reverse proxy (default: false)
+# ENCRYPTION_SECRET – set to persist API key encryption across rebuilds (default: auto-generated)
+# DB_PATH           – SQLite database path (default: ./data/homelabarr.db)
+# DOCKER_SOCKET_PATH – Docker socket path (default: /var/run/docker.sock)
 
 # Copy Next.js standalone server
 COPY --from=builder /app/.next/standalone ./

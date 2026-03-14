@@ -8,14 +8,37 @@ services:
     ports:
       - "3575:3575"
     volumes:
+      # Required: persistent database storage
       - ./data:/app/data
+      # Required: Docker socket for the Docker widget (container status/management)
       - /var/run/docker.sock:/var/run/docker.sock
-      # To show additional drives/mounts in the System Stats widget, bind-mount them (read-only):
+      # Optional: bind-mount additional drives/mounts to show in the System Stats widget (read-only)
       # - /mnt/data/media:/mnt/data/media:ro
+      # - /mnt/data/downloads:/mnt/data/downloads:ro
     environment:
       - NODE_ENV=production
+      # ── Server ──────────────────────────────────────────────────────────
+      # Port the app listens on (default: 3575)
       - PORT=3575
-      # Uncomment and set to persist encryption key across rebuilds:
+      # Hostname to bind to (default: 0.0.0.0)
+      # - HOSTNAME=0.0.0.0
+
+      # ── Security ────────────────────────────────────────────────────────
+      # Persist the encryption key for API secrets across container rebuilds.
+      # If not set, a random key is generated and stored in data/secret.key.
+      # IMPORTANT: set this if you ever need to recreate the container without losing saved API keys.
       # - ENCRYPTION_SECRET=change-me-to-a-long-random-string
-      # Set to "true" if accessing via HTTPS (e.g. behind a reverse proxy):
+
+      # Set to "true" if accessing via HTTPS (e.g. behind a reverse proxy like Nginx, Caddy, Traefik).
+      # Leave unset or "false" for plain HTTP access (default for local/homelab use).
       # - SECURE_COOKIES=true
+
+      # ── Database ────────────────────────────────────────────────────────
+      # Path to the SQLite database file inside the container (default: ./data/homelabarr.db)
+      # Normally you don't need to change this — just mount the ./data volume.
+      # - DB_PATH=./data/homelabarr.db
+
+      # ── Docker Widget ───────────────────────────────────────────────────
+      # Path to the Docker socket inside the container (default: /var/run/docker.sock)
+      # Change this if you use a Docker socket proxy (e.g. Tecnativa/docker-socket-proxy).
+      # - DOCKER_SOCKET_PATH=/var/run/docker.sock
