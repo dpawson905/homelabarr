@@ -31,24 +31,27 @@ interface WidgetGridProps {
 }
 
 function buildLayouts(items: Widget[]): ResponsiveLayouts {
-  const layout: Layout = items.map((widget) => ({
-    i: widget.id,
-    x: widget.x,
-    y: widget.y,
-    w: widget.w,
-    h: widget.h,
-    minW: 1,
-    minH: 1,
-  }))
-  // Each breakpoint must have its own array — sharing a reference causes
-  // RGL to mutate one breakpoint's layout and corrupt the others.
-  return {
-    lg: [...layout],
-    md: [...layout],
-    sm: [...layout],
-    xs: [...layout],
-    xxs: [...layout],
+  const result: ResponsiveLayouts = {}
+
+  for (const [bp, cols] of Object.entries(COLS)) {
+    result[bp] = items.map((widget) => {
+      // Clamp width to available columns so widgets don't overflow on smaller screens
+      const w = Math.min(widget.w, cols)
+      // Clamp x so the widget stays within bounds
+      const x = Math.min(widget.x, cols - w)
+      return {
+        i: widget.id,
+        x,
+        y: widget.y,
+        w,
+        h: widget.h,
+        minW: 1,
+        minH: 1,
+      }
+    })
   }
+
+  return result
 }
 
 export function WidgetGrid({ widgets: initialWidgets }: WidgetGridProps) {
