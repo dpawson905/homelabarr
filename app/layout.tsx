@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist_Mono, JetBrains_Mono, Fira_Code, Antonio, Rajdhani } from "next/font/google";
+import { Geist_Mono, JetBrains_Mono, Fira_Code, Antonio, Rajdhani, Audiowide } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { THEMES } from "@/lib/themes";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -38,6 +38,14 @@ const rajdhani = Rajdhani({
   display: "swap",
 });
 
+// Tron Classic theme — 80s arcade/CRT display, closest free analog to the original Tron title face
+const audiowide = Audiowide({
+  subsets: ["latin"],
+  weight: ["400"],
+  variable: "--font-audiowide",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "Homelabarr",
   description: "Self-hosted homelab dashboard",
@@ -49,7 +57,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${jetbrainsMono.variable} ${firaCode.variable} ${antonio.variable} ${rajdhani.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${jetbrainsMono.variable} ${firaCode.variable} ${antonio.variable} ${rajdhani.variable} ${audiowide.variable}`} suppressHydrationWarning>
       <body
         className={`${geistMono.variable} antialiased`}
       >
