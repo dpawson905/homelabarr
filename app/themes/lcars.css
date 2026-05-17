@@ -1,38 +1,71 @@
 /* app/themes/lcars.css
- * STUB — full theme in Phase 12.
- * Currently inherits dark-theme vars so the theme is selectable + produces
- * a usable rendering. Real visual identity ships in Phase 12.
+ *
+ * LCARS (Library Computer Access/Retrieval System) — Star Trek: TNG inspired.
+ *
+ * Palette derived from Michael Okuda's canonical LCARS colors:
+ *   Almond Creme     #FFCC99   primary text
+ *   Cosmic Salmon    #FFAA90
+ *   Mostly Magenta   #FF66CC
+ *   Plum             #CC99CC
+ *   Sunflower        #FFCC66
+ *   Persimmon        #FF7700   primary actions
+ *   Marigold         #FFCC33   focus rings
+ *   Light Blue       #99CCFF   accents
+ *   Lilac            #9999CC
+ *
+ * Design:
+ *   - Pure black background (LCARS canon)
+ *   - Heavy border-radius (1.25rem) evokes the LCARS pill/elbow shape language
+ *     without needing per-component overrides
+ *   - Font: Antonio (condensed sans, closest free analog to Eurostile)
  */
+
 .lcars {
-  --background: oklch(0.13 0.028 261.692);
-  --foreground: oklch(0.985 0.002 247.839);
-  --card: oklch(0.21 0.034 264.665);
-  --card-foreground: oklch(0.985 0.002 247.839);
-  --popover: oklch(0.21 0.034 264.665);
-  --popover-foreground: oklch(0.985 0.002 247.839);
-  --primary: oklch(0.70 0.12 183);
-  --primary-foreground: oklch(0.28 0.04 193);
-  --secondary: oklch(0.274 0.006 286.033);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.278 0.033 256.848);
-  --muted-foreground: oklch(0.707 0.022 261.325);
-  --accent: oklch(0.278 0.033 256.848);
-  --accent-foreground: oklch(0.985 0.002 247.839);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.551 0.027 264.364);
-  --chart-1: oklch(0.85 0.13 181);
-  --chart-2: oklch(0.78 0.13 182);
-  --chart-3: oklch(0.70 0.12 183);
-  --chart-4: oklch(0.60 0.10 185);
-  --chart-5: oklch(0.51 0.09 186);
-  --sidebar: oklch(0.21 0.034 264.665);
-  --sidebar-foreground: oklch(0.985 0.002 247.839);
-  --sidebar-primary: oklch(0.78 0.13 182);
-  --sidebar-primary-foreground: oklch(0.28 0.04 193);
-  --sidebar-accent: oklch(0.278 0.033 256.848);
-  --sidebar-accent-foreground: oklch(0.985 0.002 247.839);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.551 0.027 264.364);
+  /* Surfaces */
+  --background: oklch(0 0 0);
+  --foreground: oklch(0.86 0.075 70);
+  --card: oklch(0.12 0.012 60);
+  --card-foreground: oklch(0.86 0.075 70);
+  --popover: oklch(0.12 0.012 60);
+  --popover-foreground: oklch(0.86 0.075 70);
+
+  /* Actions */
+  --primary: oklch(0.68 0.20 45);             /* Persimmon */
+  --primary-foreground: oklch(0 0 0);
+  --secondary: oklch(0.72 0.085 320);         /* Plum */
+  --secondary-foreground: oklch(0 0 0);
+  --accent: oklch(0.82 0.08 240);             /* Light Blue */
+  --accent-foreground: oklch(0 0 0);
+  --destructive: oklch(0.59 0.13 25);         /* Red-orange */
+
+  /* Muted */
+  --muted: oklch(0.25 0.015 65);
+  --muted-foreground: oklch(0.72 0.10 80);    /* Sunflower dimmed */
+
+  /* Lines + focus */
+  --border: oklch(0.86 0.075 65 / 30%);
+  --input: oklch(0.86 0.075 65 / 18%);
+  --ring: oklch(0.86 0.16 90);                /* Marigold */
+
+  /* Charts — full LCARS palette cycle */
+  --chart-1: oklch(0.68 0.20 45);             /* Persimmon */
+  --chart-2: oklch(0.82 0.08 240);            /* Light Blue */
+  --chart-3: oklch(0.72 0.085 320);           /* Plum */
+  --chart-4: oklch(0.86 0.13 85);             /* Sunflower */
+  --chart-5: oklch(0.70 0.20 340);            /* Mostly Magenta */
+
+  /* Sidebar — uses LCARS color-block aesthetic */
+  --sidebar: oklch(0.08 0.008 60);
+  --sidebar-foreground: oklch(0.86 0.075 70);
+  --sidebar-primary: oklch(0.68 0.20 45);     /* Persimmon */
+  --sidebar-primary-foreground: oklch(0 0 0);
+  --sidebar-accent: oklch(0.72 0.085 320);    /* Plum */
+  --sidebar-accent-foreground: oklch(0 0 0);
+  --sidebar-border: oklch(0.86 0.075 65 / 25%);
+  --sidebar-ring: oklch(0.86 0.16 90);
+
+  /* Theme extras */
+  --font-sans: var(--font-antonio), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-fira-code), ui-monospace, monospace;
+  --radius: 1.25rem;
 }

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist_Mono, JetBrains_Mono, Fira_Code } from "next/font/google";
+import { Geist_Mono, JetBrains_Mono, Fira_Code, Antonio } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { THEMES } from "@/lib/themes";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -22,6 +22,14 @@ const firaCode = Fira_Code({
   display: "swap",
 });
 
+// LCARS theme — closest free analog to Eurostile Bold Extended
+const antonio = Antonio({
+  subsets: ["latin"],
+  weight: ["400", "600", "700"],
+  variable: "--font-antonio",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "Homelabarr",
   description: "Self-hosted homelab dashboard",
@@ -33,7 +41,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${jetbrainsMono.variable} ${firaCode.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${jetbrainsMono.variable} ${firaCode.variable} ${antonio.variable}`} suppressHydrationWarning>
       <body
         className={`${geistMono.variable} antialiased`}
       >
