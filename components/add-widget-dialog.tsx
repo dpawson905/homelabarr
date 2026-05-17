@@ -40,6 +40,7 @@ import {
   ServerStack01Icon,
   ChartLineData01Icon,
   Wifi01Icon,
+  BotIcon,
   CloudIcon,
 } from "@hugeicons/core-free-icons"
 import {
@@ -140,6 +141,8 @@ const WIDGET_CATEGORIES: WidgetCategory[] = [
       { type: "server-power", name: "Server Power",  description: "Control server power via webhooks", icon: ServerStack01Icon    },
       { type: "prometheus",   name: "Prometheus",     description: "Custom PromQL queries & charts",    icon: ChartLineData01Icon  },
       { type: "wake-on-lan",  name: "Wake-on-LAN",   description: "Wake devices with magic packets",   icon: Wifi01Icon           },
+      { type: "k8s-autoupdater", name: "k8s-autoupdater", description: "Kubernetes auto-update cycles, tiers, rollbacks", icon: ServerStack01Icon },
+      { type: "hermes",          name: "Hermes Agent",    description: "AI agent gateway, profiles, kanban tasks",      icon: BotIcon         },
     ],
   },
 ]
@@ -178,6 +181,8 @@ const WIDGET_DEFAULT_SIZES: Record<string, { w: number; h: number }> = {
   "server-power":     { w: 3, h: 3 },
   prometheus:         { w: 4, h: 4 },
   "wake-on-lan":      { w: 3, h: 2 },
+  "k8s-autoupdater":  { w: 3, h: 4 },
+  hermes:             { w: 3, h: 4 },
   tempest:            { w: 3, h: 4 },
 }
 

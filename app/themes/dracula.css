@@ -1,0 +1,133 @@
+/* app/themes/dracula.css
+ * Dracula theme — faithful to draculatheme.com spec (11 published colors).
+ * Internal theme-named vars (--dracula-*) used by component overrides; shadcn
+ * vars (--background, --primary, etc.) mapped from the canonical palette per SPEC §2.
+ */
+
+.dracula {
+  /* Canonical 11-color palette (oklch translations of #282A36, #44475A, etc.) */
+  --dracula-bg:           oklch(0.21 0.02 264);   /* #282A36 background */
+  --dracula-current-line: oklch(0.32 0.02 264);   /* #44475A */
+  --dracula-fg:           oklch(0.96 0.005 95);   /* #F8F8F2 foreground */
+  --dracula-comment:      oklch(0.51 0.07 264);   /* #6272A4 */
+  --dracula-cyan:         oklch(0.87 0.13 213);   /* #8BE9FD */
+  --dracula-green:        oklch(0.85 0.21 142);   /* #50FA7B */
+  --dracula-orange:       oklch(0.81 0.14 70);    /* #FFB86C */
+  --dracula-pink:         oklch(0.72 0.27 350);   /* #FF79C6 */
+  --dracula-purple:       oklch(0.71 0.18 296);   /* #BD93F9 */
+  --dracula-red:          oklch(0.66 0.24 25);    /* #FF5555 */
+  --dracula-yellow:       oklch(0.95 0.15 105);   /* #F1FA8C */
+
+  /* shadcn variable mapping per SPEC §2 */
+  --background:           var(--dracula-bg);
+  --foreground:           var(--dracula-fg);
+  --card:                 var(--dracula-current-line);
+  --card-foreground:      var(--dracula-fg);
+  --popover:              var(--dracula-current-line);
+  --popover-foreground:   var(--dracula-fg);
+  --primary:              var(--dracula-purple);
+  --primary-foreground:   var(--dracula-bg);
+  --secondary:            var(--dracula-current-line);
+  --secondary-foreground: var(--dracula-fg);
+  --muted:                var(--dracula-current-line);
+  --muted-foreground:     var(--dracula-comment);
+  --accent:               var(--dracula-pink);
+  --accent-foreground:    var(--dracula-bg);
+  --destructive:          var(--dracula-red);
+  --border:               var(--dracula-current-line);
+  --input:                var(--dracula-current-line);
+  --ring:                 var(--dracula-purple);
+  --chart-1:              var(--dracula-cyan);
+  --chart-2:              var(--dracula-green);
+  --chart-3:              var(--dracula-orange);
+  --chart-4:              var(--dracula-pink);
+  --chart-5:              var(--dracula-yellow);
+  --sidebar:              oklch(0.18 0.02 264);   /* slightly darker than bg */
+  --sidebar-foreground:   var(--dracula-fg);
+  --sidebar-primary:      var(--dracula-purple);
+  --sidebar-primary-foreground: var(--dracula-bg);
+  --sidebar-accent:       var(--dracula-current-line);
+  --sidebar-accent-foreground: var(--dracula-fg);
+  --sidebar-border:       var(--dracula-current-line);
+  --sidebar-ring:         var(--dracula-purple);
+
+  /* Theme-specific font (Fira Code wired in Task 5) */
+  --font-mono: var(--font-fira-code, 'Fira Code', 'JetBrains Mono', monospace);
+
+  /* Keep existing radius scale */
+  --radius: 0.625rem;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Component overrides (SPEC §5)
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/* Iconic Dracula text-selection */
+.dracula ::selection {
+  background: var(--dracula-pink);
+  color: var(--dracula-bg);
+}
+
+/* Scrollbar (webkit/blink browsers; Firefox uses scrollbar-color which we set on .dracula below) */
+.dracula ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.dracula ::-webkit-scrollbar-track {
+  background: var(--dracula-current-line);
+}
+.dracula ::-webkit-scrollbar-thumb {
+  background: var(--dracula-purple);
+  border-radius: 5px;
+}
+.dracula ::-webkit-scrollbar-thumb:hover {
+  background: var(--dracula-pink);
+}
+
+.dracula {
+  scrollbar-color: var(--dracula-purple) var(--dracula-current-line);
+  scrollbar-width: thin;
+}
+
+/* Code blocks — Fira Code with ligatures, current-line background */
+.dracula pre,
+.dracula code {
+  font-family: var(--font-mono);
+  font-feature-settings: 'liga' 1, 'calt' 1;  /* enable Fira Code ligatures */
+}
+.dracula pre {
+  background: var(--dracula-current-line);
+  color: var(--dracula-fg);
+  padding: 1rem;
+  border-radius: var(--radius);
+  overflow-x: auto;
+}
+.dracula :not(pre) > code {
+  background: var(--dracula-current-line);
+  color: var(--dracula-cyan);
+  padding: 0.125rem 0.375rem;
+  border-radius: calc(var(--radius) / 2);
+  font-size: 0.875em;
+}
+
+/* Keyboard input */
+.dracula kbd {
+  background: var(--dracula-current-line);
+  color: var(--dracula-cyan);
+  border: 1px solid var(--dracula-purple);
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.375rem;
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  box-shadow: 0 1px 0 var(--dracula-purple);
+}
+
+/* Data table row hover */
+.dracula table tr:hover {
+  background: color-mix(in oklch, var(--dracula-current-line) 50%, transparent);
+}
+
+/* Skeleton loader tint (keep shadcn animation, just retinted) */
+.dracula [data-slot="skeleton"] {
+  background: color-mix(in oklch, var(--dracula-current-line) 70%, var(--dracula-comment) 30%);
+}
