@@ -1,8 +1,8 @@
 services:
   homelabarr:
-    image: ghcr.io/dpawson905/homelabarr:latest
+    # image: ghcr.io/dpawson905/homelabarr:latest
     # To build from source instead, comment out 'image' above and uncomment:
-    # build: .
+    build: .
     container_name: homelabarr
     restart: unless-stopped
     ports:
@@ -14,6 +14,10 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       # Optional: bind-mount additional drives/mounts to show in the System Stats widget (read-only)
       # - /mnt/data/media:/mnt/data/media:ro
+      # For the k8s-autoupdater widget (only useful if you run k8s-autoupdater on the host),
+      # bind-mount its SQLite state DB read-only. WAL mode on the source DB makes
+      # concurrent reads safe alongside the service's writes.
+      - /opt/k8s-autoupdater/state.db:/opt/k8s-autoupdater/state.db:ro
       # - /mnt/data/downloads:/mnt/data/downloads:ro
     environment:
       - NODE_ENV=production
