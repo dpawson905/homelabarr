@@ -1,0 +1,65 @@
+/* app/themes/tron-classic.css
+ *
+ * Tron Classic (1982) — arcade/CRT aesthetic.
+ *
+ * Distinct from Phase 13's Tron Legacy in that:
+ *   - Saturation is cranked: brighter, more arcade-glow cyan
+ *   - Sark-orange (#FF4500) is used as a peer color (programs of Sark),
+ *     not just as destructive
+ *   - --radius is 0 (pure rectangles, CRT scanlines feel)
+ *   - White becomes the accent (Tron-the-character glow)
+ *   - Foreground is itself bright cyan — everything on screen feels lit
+ *
+ * Font: Audiowide — rounded geometric display, 80s arcade vibe,
+ * closest free analog to the original Tron film's title typeface.
+ */
+
+.tron-classic {
+  /* Surfaces */
+  --background: oklch(0 0 0);
+  --foreground: oklch(0.95 0.14 195);          /* Bright cyan prose */
+  --card: oklch(0.08 0.025 200);
+  --card-foreground: oklch(0.95 0.14 195);
+  --popover: oklch(0.08 0.025 200);
+  --popover-foreground: oklch(0.95 0.14 195);
+
+  /* Actions */
+  --primary: oklch(0.92 0.16 195);             /* Saturated cyan */
+  --primary-foreground: oklch(0 0 0);
+  --secondary: oklch(0.66 0.23 35);            /* Sark orange */
+  --secondary-foreground: oklch(0 0 0);
+  --accent: oklch(0.98 0 0);                   /* Tron-glow white */
+  --accent-foreground: oklch(0 0 0);
+  --destructive: oklch(0.58 0.25 28);          /* Deeper red-orange */
+
+  /* Muted */
+  --muted: oklch(0.20 0.05 200);
+  --muted-foreground: oklch(0.72 0.13 195);
+
+  /* Lines + focus — high opacity for arcade glow */
+  --border: oklch(0.92 0.16 195 / 45%);
+  --input: oklch(0.92 0.16 195 / 20%);
+  --ring: oklch(0.98 0 0);                     /* White ring — max contrast */
+
+  /* Charts — cyan/orange/white alternation, like a Recognizer's HUD */
+  --chart-1: oklch(0.92 0.16 195);             /* Cyan */
+  --chart-2: oklch(0.66 0.23 35);              /* Sark orange */
+  --chart-3: oklch(0.98 0 0);                  /* White */
+  --chart-4: oklch(0.70 0.13 195);             /* Dim cyan */
+  --chart-5: oklch(0.58 0.25 28);              /* Deep red-orange */
+
+  /* Sidebar */
+  --sidebar: oklch(0.04 0.012 200);
+  --sidebar-foreground: oklch(0.92 0.16 195);
+  --sidebar-primary: oklch(0.92 0.16 195);
+  --sidebar-primary-foreground: oklch(0 0 0);
+  --sidebar-accent: oklch(0.66 0.23 35);
+  --sidebar-accent-foreground: oklch(0 0 0);
+  --sidebar-border: oklch(0.92 0.16 195 / 40%);
+  --sidebar-ring: oklch(0.98 0 0);
+
+  /* Theme extras */
+  --font-sans: var(--font-audiowide), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-fira-code), ui-monospace, monospace;
+  --radius: 0;                                 /* Pure rectangles */
+}
