@@ -77,7 +77,7 @@ export function MediaRequestsWidget({
   onDelete,
 }: MediaRequestsWidgetProps): React.ReactElement {
   const [savedConfig, setSavedConfig] = useState({
-    serviceType: (config?.serviceType as string) ?? "overseerr",
+    serviceType: (config?.serviceType as string) ?? "seerr",
     serviceUrl: (config?.serviceUrl as string) ?? "",
     secretName: (config?.secretName as string) ?? "",
     defaultFilter: ((config?.defaultFilter as FilterOption) ?? "all") as FilterOption,
@@ -100,7 +100,7 @@ export function MediaRequestsWidget({
 
   useEffect(() => {
     const incoming = {
-      serviceType: (config?.serviceType as string) ?? "overseerr",
+      serviceType: (config?.serviceType as string) ?? "seerr",
       serviceUrl: (config?.serviceUrl as string) ?? "",
       secretName: (config?.secretName as string) ?? "",
       defaultFilter: ((config?.defaultFilter as FilterOption) ?? "all") as FilterOption,
@@ -196,7 +196,7 @@ export function MediaRequestsWidget({
   }
 
   const serviceLabel =
-    settingsServiceType === "jellyseerr" ? "Jellyseerr" : "Overseerr"
+    settingsServiceType === "jellyseerr" ? "Jellyseerr" : settingsServiceType === "overseerr" ? "Overseerr" : "Seerr"
 
   if (showSettings || !configured) {
     return (
@@ -220,8 +220,9 @@ export function MediaRequestsWidget({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="overseerr">Overseerr</SelectItem>
-                <SelectItem value="jellyseerr">Jellyseerr</SelectItem>
+                <SelectItem value="seerr">Seerr</SelectItem>
+                <SelectItem value="overseerr">Overseerr (legacy)</SelectItem>
+                <SelectItem value="jellyseerr">Jellyseerr (legacy)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -242,7 +243,7 @@ export function MediaRequestsWidget({
               id="media-req-secret"
               value={settingsSecretName}
               onChange={(e) => setSettingsSecretName(e.target.value)}
-              placeholder="OVERSEERR"
+              placeholder="SEERR"
             />
             <p className="text-[0.625rem] text-muted-foreground">
               Name of the stored secret containing your API key
@@ -288,7 +289,7 @@ export function MediaRequestsWidget({
     )
   }
 
-  const currentServiceLabel = savedConfig.serviceType === "jellyseerr" ? "Jellyseerr" : "Overseerr"
+  const currentServiceLabel = savedConfig.serviceType === "jellyseerr" ? "Jellyseerr" : savedConfig.serviceType === "overseerr" ? "Overseerr" : "Seerr"
 
   if (!loading && error) {
     return (

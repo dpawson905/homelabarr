@@ -24,7 +24,7 @@ export async function POST(
     )
   }
 
-  const socketPath: string = body.socketPath ?? "/var/run/docker.sock"
+  const socketPath = process.env.DOCKER_SOCKET_PATH ?? "/var/run/docker.sock"
   const docker = new Dockerode({ socketPath })
 
   try {

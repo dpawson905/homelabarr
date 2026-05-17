@@ -4,12 +4,12 @@ import { useState, useEffect, useCallback } from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   CloudIcon,
+  Location01Icon,
+  Search01Icon,
   Settings02Icon,
-  ThermometerIcon,
   WindPower01Icon,
   DropletIcon,
-  Sun01Icon,
-  FlashIcon,
+  ThermometerIcon,
 } from "@hugeicons/core-free-icons"
 import { WidgetHeader } from "@/components/widget-header"
 import { DeleteWidgetButton } from "@/components/delete-widget-button"
@@ -17,6 +17,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { format } from "date-fns"
@@ -28,28 +35,41 @@ interface WeatherWidgetProps {
   onDelete?: () => void
 }
 
-const POLL_INTERVAL_MS = 120_000 // 2 minutes
-
-function getWeatherEmoji(code: number): string {
-  if (code >= 95) return "⛈️"
-  if (code >= 80) return "🌧️"
-  if (code >= 61) return "🌧️"
-  if (code >= 51) return "🌦️"
-  if (code >= 45) return "🌫️"
-  if (code === 3) return "☁️"
-  if (code >= 1) return "⛅"
-  return "☀️"
+interface GeoResult {
+  name: string
+  state?: string
+  country: string
+  lat: number
+  lon: number
 }
 
-function getConditionLabel(code: number): string {
-  if (code >= 95) return "Thunderstorm"
-  if (code >= 80) return "Showers"
-  if (code >= 61) return "Rain"
-  if (code >= 51) return "Drizzle"
-  if (code >= 45) return "Foggy"
-  if (code === 3) return "Overcast"
-  if (code >= 1) return "Partly Cloudy"
-  return "Clear"
+const POLL_INTERVAL_MS = 600_000 // 10 minutes
+
+// OWM icon code → emoji
+function getWeatherEmoji(icon: string): string {
+  const map: Record<string, string> = {
+    "01d": "☀️", "01n": "🌙",
+    "02d": "⛅", "02n": "☁️",
+    "03d": "☁️", "03n": "☁️",
+    "04d": "☁️", "04n": "☁️",
+    "09d": "🌧️", "09n": "🌧️",
+    "10d": "🌦️", "10n": "🌧️",
+    "11d": "⛈️", "11n": "⛈️",
+    "13d": "❄️", "13n": "❄️",
+    "50d": "🌫️", "50n": "🌫️",
+  }
+  return map[icon] ?? "🌤️"
+}
+
+function getAqiLabel(aqi: number): { label: string; color: string } {
+  switch (aqi) {
+    case 1: return { label: "Good", color: "text-green-400" }
+    case 2: return { label: "Fair", color: "text-yellow-400" }
+    case 3: return { label: "Moderate", color: "text-orange-400" }
+    case 4: return { label: "Poor", color: "text-red-400" }
+    case 5: return { label: "Very Poor", color: "text-red-600" }
+    default: return { label: "Unknown", color: "text-muted-foreground" }
+  }
 }
 
 function windDirectionLabel(deg: number): string {
@@ -57,79 +77,64 @@ function windDirectionLabel(deg: number): string {
   return dirs[Math.round(deg / 22.5) % 16]
 }
 
-function getForecastEmoji(icon: string): string {
-  const map: Record<string, string> = {
-    "clear-day": "☀️",
-    "clear-night": "🌙",
-    "cloudy": "☁️",
-    "foggy": "🌫️",
-    "partly-cloudy-day": "⛅",
-    "partly-cloudy-night": "☁️",
-    "possibly-rainy-day": "🌦️",
-    "possibly-rainy-night": "🌦️",
-    "rainy": "🌧️",
-    "sleet": "🌨️",
-    "snow": "❄️",
-    "thunderstorm": "⛈️",
-    "windy": "💨",
-  }
-  return map[icon] ?? "🌤️"
+function formatTime(unix: number): string {
+  return format(new Date(unix * 1000), "h:mm a")
 }
 
-function isConfigured(config: Record<string, unknown> | null): boolean {
-  return (
-    typeof config?.stationId === "number" &&
-    config.stationId > 0 &&
-    typeof config?.secretName === "string" &&
-    config.secretName.length > 0
-  )
-}
-
-export function WeatherWidget({
-  widgetId,
-  config,
-  onDelete,
-}: WeatherWidgetProps): React.ReactElement {
+export function WeatherWidget({ widgetId, config, onDelete }: WeatherWidgetProps): React.ReactElement {
   const [savedConfig, setSavedConfig] = useState({
-    stationId: (config?.stationId as number) ?? 0,
-    secretName: (config?.secretName as string) ?? "",
+    latitude: (config?.latitude as number) ?? 0,
+    longitude: (config?.longitude as number) ?? 0,
     locationName: (config?.locationName as string) ?? "",
+    secretName: (config?.secretName as string) ?? "",
+    units: (config?.units as string) ?? "imperial",
   })
-  const configured = savedConfig.stationId > 0 && !!savedConfig.secretName
+  const configured = savedConfig.latitude !== 0 && savedConfig.longitude !== 0 && !!savedConfig.secretName
 
   const [data, setData] = useState<WeatherResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
 
-  const [settingsStationId, setSettingsStationId] = useState(
-    savedConfig.stationId ? String(savedConfig.stationId) : ""
-  )
+  // Settings form state
   const [settingsSecretName, setSettingsSecretName] = useState(savedConfig.secretName)
   const [settingsLocationName, setSettingsLocationName] = useState(savedConfig.locationName)
+  const [settingsLat, setSettingsLat] = useState(savedConfig.latitude ? String(savedConfig.latitude) : "")
+  const [settingsLon, setSettingsLon] = useState(savedConfig.longitude ? String(savedConfig.longitude) : "")
+  const [settingsUnits, setSettingsUnits] = useState(savedConfig.units)
   const [saving, setSaving] = useState(false)
+  const [geolocating, setGeolocating] = useState(false)
 
+  // City search state
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<GeoResult[]>([])
+  const [searching, setSearching] = useState(false)
+
+  // Sync from config prop
   useEffect(() => {
     const incoming = {
-      stationId: (config?.stationId as number) ?? 0,
-      secretName: (config?.secretName as string) ?? "",
+      latitude: (config?.latitude as number) ?? 0,
+      longitude: (config?.longitude as number) ?? 0,
       locationName: (config?.locationName as string) ?? "",
+      secretName: (config?.secretName as string) ?? "",
+      units: (config?.units as string) ?? "imperial",
     }
     setSavedConfig(incoming)
-    setSettingsStationId(incoming.stationId ? String(incoming.stationId) : "")
     setSettingsSecretName(incoming.secretName)
     setSettingsLocationName(incoming.locationName)
+    setSettingsLat(incoming.latitude ? String(incoming.latitude) : "")
+    setSettingsLon(incoming.longitude ? String(incoming.longitude) : "")
+    setSettingsUnits(incoming.units)
   }, [config])
 
-  const fetchData = useCallback(async () => {
+  const fetchWeather = useCallback(async () => {
     if (!configured) {
       setLoading(false)
       return
     }
 
     try {
-      const params = new URLSearchParams({ widgetId })
-      const res = await fetch(`/api/widgets/weather?${params}`)
+      const res = await fetch(`/api/widgets/weather?widgetId=${widgetId}`)
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: "Unknown error" }))
@@ -156,29 +161,82 @@ export function WeatherWidget({
     }
 
     setLoading(true)
-    fetchData()
-
-    const interval = setInterval(fetchData, POLL_INTERVAL_MS)
+    fetchWeather()
+    const interval = setInterval(fetchWeather, POLL_INTERVAL_MS)
     return () => clearInterval(interval)
-  }, [fetchData, configured])
+  }, [fetchWeather, configured])
 
-  async function handleSaveSettings() {
+  async function handleCitySearch() {
+    if (!searchQuery.trim() || !settingsSecretName) return
+    setSearching(true)
+    try {
+      const params = new URLSearchParams({
+        q: searchQuery.trim(),
+        secretName: settingsSecretName,
+      })
+      const res = await fetch(`/api/widgets/weather/geocode?${params}`)
+      if (res.ok) {
+        const results: GeoResult[] = await res.json()
+        setSearchResults(results)
+      } else {
+        toast.error("City search failed")
+      }
+    } catch {
+      toast.error("City search failed")
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  function handleSelectCity(city: GeoResult) {
+    setSettingsLat(String(city.lat))
+    setSettingsLon(String(city.lon))
+    setSettingsLocationName(
+      city.state ? `${city.name}, ${city.state}` : `${city.name}, ${city.country}`
+    )
+    setSearchResults([])
+    setSearchQuery("")
+  }
+
+  function handleUseMyLocation() {
+    if (!navigator.geolocation) return
+    setGeolocating(true)
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setSettingsLat(String(Math.round(position.coords.latitude * 10000) / 10000))
+        setSettingsLon(String(Math.round(position.coords.longitude * 10000) / 10000))
+        setGeolocating(false)
+      },
+      () => {
+        setGeolocating(false)
+      }
+    )
+  }
+
+  async function handleSave() {
+    const lat = Number(settingsLat)
+    const lon = Number(settingsLon)
+    if (Number.isNaN(lat) || Number.isNaN(lon)) {
+      toast.error("Invalid coordinates")
+      return
+    }
+    if (!settingsSecretName.trim()) {
+      toast.error("API key secret name is required")
+      return
+    }
+
     setSaving(true)
     try {
-      const stationId = Number(settingsStationId)
-      if (Number.isNaN(stationId) || stationId <= 0) {
-        toast.error("Station ID must be a positive number")
-        return
-      }
-
       const res = await fetch(`/api/widgets/${widgetId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           config: {
-            stationId,
-            secretName: settingsSecretName,
+            latitude: lat,
+            longitude: lon,
             locationName: settingsLocationName.trim(),
+            secretName: settingsSecretName.trim(),
+            units: settingsUnits,
           },
         }),
       })
@@ -189,9 +247,11 @@ export function WeatherWidget({
       }
 
       setSavedConfig({
-        stationId,
-        secretName: settingsSecretName,
+        latitude: lat,
+        longitude: lon,
         locationName: settingsLocationName.trim(),
+        secretName: settingsSecretName.trim(),
+        units: settingsUnits,
       })
       setShowSettings(false)
       setLoading(true)
@@ -202,7 +262,9 @@ export function WeatherWidget({
     }
   }
 
-  const displayName = savedConfig.locationName || data?.station?.name || "Weather"
+  const unitSymbol = savedConfig.units === "metric" ? "C" : "F"
+  const speedUnit = savedConfig.units === "metric" ? "m/s" : "mph"
+  const displayName = savedConfig.locationName || data?.location?.name || "Weather"
 
   // Settings / setup view
   if (showSettings || !configured) {
@@ -216,46 +278,121 @@ export function WeatherWidget({
           onSettingsClick={configured ? () => setShowSettings(false) : undefined}
         />
 
-        <div className="flex-1 overflow-y-auto p-3 space-y-4">
+        <div className="flex-1 overflow-y-auto p-3 space-y-3">
           <div className="space-y-1.5">
-            <Label htmlFor="weather-station-id">Tempest Station ID</Label>
-            <Input
-              id="weather-station-id"
-              value={settingsStationId}
-              onChange={(e) => setSettingsStationId(e.target.value)}
-              placeholder="e.g. 210931"
-            />
-            <p className="text-[0.625rem] text-muted-foreground">
-              Find this at tempestwx.com under your station settings
-            </p>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="weather-secret">Secret Name</Label>
+            <Label htmlFor="weather-secret">API Key Secret Name</Label>
             <Input
               id="weather-secret"
               value={settingsSecretName}
               onChange={(e) => setSettingsSecretName(e.target.value)}
-              placeholder="TEMPEST_TOKEN"
+              placeholder="OWM_API_KEY"
             />
             <p className="text-[0.625rem] text-muted-foreground">
-              Name of a secret created in Settings (your Tempest API token)
+              Name of a secret in Settings containing your OpenWeatherMap API key
             </p>
           </div>
 
+          {/* City search */}
+          {settingsSecretName && (
+            <div className="space-y-1.5">
+              <Label>Search City</Label>
+              <div className="flex gap-1.5">
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="e.g. New York"
+                  onKeyDown={(e) => e.key === "Enter" && handleCitySearch()}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCitySearch}
+                  disabled={searching || !searchQuery.trim()}
+                  className="shrink-0"
+                >
+                  <HugeiconsIcon icon={Search01Icon} strokeWidth={2} className="size-3" />
+                </Button>
+              </div>
+              {searchResults.length > 0 && (
+                <div className="flex flex-col gap-0.5 rounded-md border border-border bg-muted/50 p-1">
+                  {searchResults.map((r, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      className="flex items-center justify-between rounded px-2 py-1 text-left text-xs hover:bg-muted transition-colors"
+                      onClick={() => handleSelectCity(r)}
+                    >
+                      <span className="font-medium text-foreground">
+                        {r.name}{r.state ? `, ${r.state}` : ""}, {r.country}
+                      </span>
+                      <span className="text-[0.5rem] text-muted-foreground">
+                        {r.lat}, {r.lon}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="space-y-1.5">
-            <Label htmlFor="weather-location">Location Name (optional)</Label>
+            <Label htmlFor="weather-location">Location Name</Label>
             <Input
               id="weather-location"
               value={settingsLocationName}
               onChange={(e) => setSettingsLocationName(e.target.value)}
-              placeholder="e.g. Sparrow Dr"
+              placeholder="e.g. New York, NY"
             />
           </div>
 
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="weather-lat">Latitude</Label>
+              <Input
+                id="weather-lat"
+                value={settingsLat}
+                onChange={(e) => setSettingsLat(e.target.value)}
+                placeholder="40.7128"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="weather-lon">Longitude</Label>
+              <Input
+                id="weather-lon"
+                value={settingsLon}
+                onChange={(e) => setSettingsLon(e.target.value)}
+                placeholder="-74.0060"
+              />
+            </div>
+          </div>
+
           <Button
-            onClick={handleSaveSettings}
-            disabled={saving || !settingsStationId.trim() || !settingsSecretName.trim()}
+            variant="outline"
+            size="sm"
+            onClick={handleUseMyLocation}
+            disabled={geolocating}
+            className="w-full"
+          >
+            <HugeiconsIcon icon={Location01Icon} strokeWidth={2} className="size-3" />
+            {geolocating ? "Locating..." : "Use My Location"}
+          </Button>
+
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-[0.625rem] text-muted-foreground">Units</Label>
+            <Select value={settingsUnits} onValueChange={setSettingsUnits}>
+              <SelectTrigger size="sm" className="w-28">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="imperial">Imperial (°F)</SelectItem>
+                <SelectItem value="metric">Metric (°C)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Button
+            onClick={handleSave}
+            disabled={saving || !settingsLat || !settingsLon || !settingsSecretName.trim()}
             className="w-full"
             size="sm"
           >
@@ -287,7 +424,7 @@ export function WeatherWidget({
             className="size-10 text-muted-foreground/30"
           />
           <p className="text-sm font-medium text-muted-foreground">
-            Cannot connect to Tempest
+            Cannot connect to OpenWeatherMap
           </p>
           <p className="text-center text-xs text-muted-foreground/70">{error}</p>
           <Button
@@ -295,11 +432,7 @@ export function WeatherWidget({
             size="sm"
             onClick={() => setShowSettings(true)}
           >
-            <HugeiconsIcon
-              icon={Settings02Icon}
-              strokeWidth={2}
-              data-icon="inline-start"
-            />
+            <HugeiconsIcon icon={Settings02Icon} strokeWidth={2} data-icon="inline-start" />
             Settings
           </Button>
         </div>
@@ -354,18 +487,18 @@ export function WeatherWidget({
             <div className="flex flex-col items-center gap-1 px-3 pt-2 pb-1">
               <div className="flex items-center gap-2">
                 <span className="text-2xl">
-                  {getWeatherEmoji(data.current.weatherCode)}
+                  {getWeatherEmoji(data.current.icon)}
                 </span>
                 <span className="text-3xl font-semibold tracking-tight text-foreground">
-                  {data.current.temperature}&deg;F
+                  {data.current.temp}&deg;{unitSymbol}
                 </span>
               </div>
-              <span className="text-xs text-muted-foreground">
-                {getConditionLabel(data.current.weatherCode)}
+              <span className="text-xs capitalize text-muted-foreground">
+                {data.current.description}
               </span>
               <div className="mt-0.5 flex items-center gap-3 text-[0.625rem] text-muted-foreground">
                 <span>Feels {data.current.feelsLike}&deg;</span>
-                <span>{data.current.humidity}% humidity</span>
+                <span>H:{data.current.tempMax}&deg; L:{data.current.tempMin}&deg;</span>
               </div>
             </div>
 
@@ -374,56 +507,64 @@ export function WeatherWidget({
               <SensorTile
                 icon={WindPower01Icon}
                 label="Wind"
-                value={data.current.windSpeed > 0
-                  ? `${data.current.windSpeed} ${windDirectionLabel(data.current.windDirection)}`
-                  : "Calm"
-                }
-                sub={data.current.windGust > 0 ? `G ${data.current.windGust}` : undefined}
-              />
-              <SensorTile
-                icon={ThermometerIcon}
-                label="Pressure"
-                value={`${data.current.pressure}`}
-                sub="inHg"
-              />
-              <SensorTile
-                icon={DropletIcon}
-                label="Rain"
-                value={`${data.current.rainToday}`}
-                sub="in today"
-              />
-              <SensorTile
-                icon={Sun01Icon}
-                label="UV"
-                value={`${data.current.uvIndex}`}
-                sub={data.current.solarRadiation > 0 ? `${data.current.solarRadiation} W/m²` : undefined}
-              />
-              <SensorTile
-                icon={FlashIcon}
-                label="Lightning"
-                value={`${data.current.lightningCount3hr}`}
-                sub="3hr"
+                value={`${data.current.windSpeed} ${windDirectionLabel(data.current.windDeg)}`}
+                sub={data.current.windGust ? `G ${data.current.windGust} ${speedUnit}` : speedUnit}
               />
               <SensorTile
                 icon={DropletIcon}
                 label="Humidity"
                 value={`${data.current.humidity}%`}
               />
+              <SensorTile
+                icon={ThermometerIcon}
+                label="Pressure"
+                value={`${data.current.pressure}`}
+                sub="hPa"
+              />
+              <SensorTile
+                icon={CloudIcon}
+                label="Clouds"
+                value={`${data.current.clouds}%`}
+              />
+              <SensorTile
+                icon={CloudIcon}
+                label="Sunrise"
+                value={formatTime(data.current.sunrise)}
+              />
+              <SensorTile
+                icon={CloudIcon}
+                label="Sunset"
+                value={formatTime(data.current.sunset)}
+              />
             </div>
 
-            {/* Forecast */}
-            {data.forecast && data.forecast.daily.length > 0 && (
+            {/* Air Quality */}
+            {data.airQuality && (
+              <div className="mx-3 mb-1.5 flex items-center justify-between rounded-md bg-muted/50 px-2.5 py-1.5">
+                <span className="text-[0.625rem] text-muted-foreground">Air Quality</span>
+                <span className={cn("text-xs font-semibold", getAqiLabel(data.airQuality.aqi).color)}>
+                  {getAqiLabel(data.airQuality.aqi).label}
+                </span>
+                <div className="flex gap-2 text-[0.5rem] text-muted-foreground">
+                  <span>PM2.5: {data.airQuality.pm2_5}</span>
+                  <span>O₃: {data.airQuality.o3}</span>
+                </div>
+              </div>
+            )}
+
+            {/* 5-day forecast */}
+            {data.forecast.length > 0 && (
               <div className="shrink-0 border-t border-border mt-auto">
                 <div className="flex items-stretch justify-around px-2 py-2">
-                  {data.forecast.daily.map((day) => (
+                  {data.forecast.map((day) => (
                     <div
-                      key={day.day}
+                      key={day.date}
                       className="flex flex-col items-center gap-0.5 px-1"
                     >
                       <span className="text-[0.5rem] font-medium text-muted-foreground uppercase">
-                        {format(new Date(day.day + "T00:00:00"), "EEE")}
+                        {format(new Date(day.date + "T00:00:00"), "EEE")}
                       </span>
-                      <span className="text-sm">{getForecastEmoji(day.icon)}</span>
+                      <span className="text-sm">{getWeatherEmoji(day.icon)}</span>
                       <div className="flex gap-1 text-[0.5rem]">
                         <span className="font-medium text-foreground">
                           {day.tempHigh}&deg;
@@ -432,9 +573,9 @@ export function WeatherWidget({
                           {day.tempLow}&deg;
                         </span>
                       </div>
-                      {day.precipProbability > 0 && (
+                      {day.pop > 0 && (
                         <span className="text-[0.4375rem] text-blue-400">
-                          {day.precipProbability}%
+                          {day.pop}%
                         </span>
                       )}
                     </div>

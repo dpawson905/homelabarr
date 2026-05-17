@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { secrets } from "@/lib/db/schema";
-import { encrypt, decrypt } from "@/lib/crypto/secrets";
+import { encrypt } from "@/lib/crypto/secrets";
 import { eq } from "drizzle-orm";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -20,18 +20,17 @@ export async function GET(
 ): Promise<NextResponse> {
   try {
     const { id } = await params;
-    const secret = db.select().from(secrets).where(eq(secrets.id, id)).get();
+    const secret = db
+      .select(PUBLIC_COLUMNS)
+      .from(secrets)
+      .where(eq(secrets.id, id))
+      .get();
 
     if (!secret) {
       return NextResponse.json({ error: "Secret not found" }, { status: 404 });
     }
 
-    return NextResponse.json({
-      id: secret.id,
-      name: secret.name,
-      description: secret.description,
-      value: decrypt(secret.encryptedValue, secret.iv, secret.authTag),
-    });
+    return NextResponse.json(secret);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to fetch secret";
