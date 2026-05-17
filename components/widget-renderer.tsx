@@ -36,6 +36,7 @@ import { ServerPowerWidget } from "@/components/widgets/server-power-widget"
 import { PrometheusWidget } from "@/components/widgets/prometheus-widget"
 import { WakeOnLanWidget } from "@/components/widgets/wake-on-lan-widget"
 import { K8sAutoupdaterWidget } from "@/components/widgets/k8s-autoupdater-widget"
+import { HermesWidget } from "@/components/widgets/hermes-widget"
 
 interface WidgetRendererProps {
   type: string
@@ -117,6 +118,8 @@ export function WidgetRenderer({ type, widgetId, config, onDelete }: WidgetRende
       return <WakeOnLanWidget widgetId={widgetId} config={c} onDelete={onDelete} />
     case "k8s-autoupdater":
       return <K8sAutoupdaterWidget widgetId={widgetId} config={c} onDelete={onDelete} />
+    case "hermes":
+      return <HermesWidget widgetId={widgetId} config={c} onDelete={onDelete} />
     default:
       return <WidgetPlaceholder type={type} />
   }
