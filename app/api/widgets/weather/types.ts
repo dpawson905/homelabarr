@@ -1,74 +1,111 @@
+/** Normalized response returned by our weather API route */
 export interface WeatherResponse {
-  station: {
+  location: {
     name: string
-    stationId: number
+    country: string
+    lat: number
+    lon: number
   }
   current: {
-    temperature: number // °F
-    feelsLike: number // °F
-    humidity: number // %
-    pressure: number // inHg
-    windSpeed: number // mph
-    windGust: number // mph
-    windDirection: number // degrees
-    uvIndex: number
-    solarRadiation: number // W/m²
-    rainToday: number // in
-    lightningCount3hr: number
-    weatherCode: number // WMO code derived from conditions
+    temp: number
+    feelsLike: number
+    tempMin: number
+    tempMax: number
+    humidity: number
+    pressure: number // hPa
+    visibility: number // metres
+    windSpeed: number
+    windDeg: number
+    windGust?: number
+    clouds: number // %
+    description: string
+    icon: string // OWM icon id
+    conditionId: number // OWM condition code
+    sunrise: number // unix
+    sunset: number // unix
+    dt: number // unix
   }
-  forecast: {
-    daily: ForecastDay[]
+  airQuality: {
+    aqi: number // 1-5
+    pm2_5: number
+    pm10: number
+    o3: number
+    no2: number
   } | null
+  forecast: ForecastDay[]
 }
 
 export interface ForecastDay {
-  day: string // ISO date
-  tempHigh: number // °F
-  tempLow: number // °F
-  precip: number // in
-  precipProbability: number // %
-  icon: string // condition icon name
-  conditions: string // text description
-}
-
-/** Raw Tempest observation response */
-export interface TempestObservationResponse {
-  obs: TempestObservation[]
-  station_id: number
-  station_name: string
-  status: { status_code: number; status_message: string }
-}
-
-export interface TempestObservation {
-  air_temperature: number // °C
-  feels_like: number // °C
-  relative_humidity: number
-  sea_level_pressure: number // mb
-  wind_avg: number // m/s
-  wind_gust: number // m/s
-  wind_direction: number
-  uv: number
-  solar_radiation: number
-  precip_accum_local_day: number // mm
-  lightning_strike_count_last_3hr: number
-  timestamp: number
-}
-
-/** Raw Tempest forecast response */
-export interface TempestForecastResponse {
-  forecast: {
-    daily: TempestForecastDay[]
-  }
-  status: { status_code: number; status_message: string }
-}
-
-export interface TempestForecastDay {
-  day_start_local: number // epoch
-  air_temp_high: number // °C
-  air_temp_low: number // °C
-  precip: number // mm
-  precip_probability: number // %
+  date: string // ISO date YYYY-MM-DD
+  tempHigh: number
+  tempLow: number
   icon: string
-  conditions: string
+  conditionId: number
+  description: string
+  pop: number // probability of precipitation 0-100
+}
+
+/** Raw OWM current weather response (subset) */
+export interface OWMCurrentResponse {
+  coord: { lon: number; lat: number }
+  weather: { id: number; main: string; description: string; icon: string }[]
+  main: {
+    temp: number
+    feels_like: number
+    temp_min: number
+    temp_max: number
+    pressure: number
+    humidity: number
+  }
+  visibility: number
+  wind: { speed: number; deg: number; gust?: number }
+  clouds: { all: number }
+  dt: number
+  sys: { country: string; sunrise: number; sunset: number }
+  timezone: number
+  name: string
+}
+
+/** Raw OWM 5-day forecast response (subset) */
+export interface OWMForecastResponse {
+  list: {
+    dt: number
+    main: { temp: number; temp_min: number; temp_max: number }
+    weather: { id: number; description: string; icon: string }[]
+    pop: number
+  }[]
+  city: {
+    name: string
+    country: string
+    timezone: number
+    sunrise: number
+    sunset: number
+  }
+}
+
+/** Raw OWM air pollution response (subset) */
+export interface OWMAirPollutionResponse {
+  list: {
+    main: { aqi: number }
+    components: {
+      pm2_5: number
+      pm10: number
+      o3: number
+      no2: number
+      co: number
+      so2: number
+      no: number
+      nh3: number
+    }
+  }[]
+}
+
+/** Raw OWM geocoding response */
+export interface OWMGeocodingResult {
+  name: string
+  local_names?: Record<string, string>
+  lat: number
+  lon: number
+  country: string
+  state?: string
 }

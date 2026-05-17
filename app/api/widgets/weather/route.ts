@@ -3,55 +3,17 @@ import { getWidgetWithConfig } from "@/app/api/widgets/helpers"
 import { resolveSecret } from "@/lib/services/service-client"
 import type {
   WeatherResponse,
-  TempestObservationResponse,
-  TempestForecastResponse,
   ForecastDay,
+  OWMCurrentResponse,
+  OWMForecastResponse,
+  OWMAirPollutionResponse,
 } from "./types"
 
-const TEMPEST_API = "https://swd.weatherflow.com/swd/rest"
-
-function cToF(c: number): number {
-  return Math.round((c * 9) / 5 + 32)
-}
-
-function msToMph(ms: number): number {
-  return Math.round(ms * 2.237 * 10) / 10
-}
-
-function mbToInHg(mb: number): number {
-  return Math.round(mb * 0.02953 * 100) / 100
-}
-
-function mmToIn(mm: number): number {
-  return Math.round(mm * 0.03937 * 100) / 100
-}
-
-function deriveWeatherCode(obs: {
-  precip_accum_local_day: number
-  lightning_strike_count_last_3hr: number
-  solar_radiation: number
-  wind_avg: number
-}): number {
-  if (obs.lightning_strike_count_last_3hr > 0) return 95 // thunderstorm
-  if (obs.precip_accum_local_day > 10) return 63 // moderate rain
-  if (obs.precip_accum_local_day > 0) return 51 // light drizzle
-  if (obs.solar_radiation === 0 && obs.wind_avg < 1) return 0 // clear/night
-  if (obs.solar_radiation > 500) return 0 // clear sky
-  if (obs.solar_radiation > 200) return 2 // partly cloudy
-  return 3 // overcast
-}
+const OWM_BASE = "https://api.openweathermap.org/data/2.5"
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const { searchParams } = request.nextUrl
-
-  // Support both legacy (lat/lon) and Tempest (widgetId) modes
   const widgetId = searchParams.get("widgetId")
-  const legacyLat = searchParams.get("lat")
-
-  // Legacy Open-Meteo mode for backwards compatibility
-  if (legacyLat && !widgetId) {
-    return handleLegacy(searchParams)
-  }
 
   if (!widgetId) {
     return NextResponse.json(
@@ -66,147 +28,209 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   const config = widget.config as Record<string, unknown> | null
-  const stationId = config?.stationId as number | undefined
+  const lat = config?.latitude as number | undefined
+  const lon = config?.longitude as number | undefined
   const secretName = config?.secretName as string | undefined
+  const units = (config?.units as string) ?? "imperial"
 
-  if (
-    typeof stationId !== "number" ||
-    !Number.isInteger(stationId) ||
-    stationId <= 0 ||
-    !secretName
-  ) {
+  if (typeof lat !== "number" || typeof lon !== "number") {
     return NextResponse.json(
-      { error: "Weather widget not configured. Add a valid station ID and API token." },
+      { error: "Weather widget not configured. Set a location." },
       { status: 400 }
     )
   }
 
-  const token = resolveSecret(secretName)
-  if (!token) {
+  if (!secretName) {
     return NextResponse.json(
-      { error: "Weather widget API token not found. Create the required secret in Settings." },
+      { error: "API key not configured. Add your OpenWeatherMap API key secret first." },
+      { status: 400 }
+    )
+  }
+
+  const apiKey = resolveSecret(secretName)
+  if (!apiKey) {
+    return NextResponse.json(
+      { error: "API key secret not found. Create the required secret in Settings." },
       { status: 400 }
     )
   }
 
   try {
-    // Fetch observations and forecast in parallel
-    const [obsRes, forecastRes] = await Promise.all([
-      fetch(`${TEMPEST_API}/observations/station/${stationId}?token=${token}`, {
+    const params = `lat=${lat}&lon=${lon}&appid=${apiKey}&units=${units}`
+
+    const [currentRes, forecastRes, pollutionRes] = await Promise.all([
+      fetch(`${OWM_BASE}/weather?${params}`, {
         signal: AbortSignal.timeout(10_000),
       }),
-      fetch(
-        `${TEMPEST_API}/better_forecast?station_id=${stationId}&token=${token}&units_temp=f&units_wind=mph&units_pressure=inhg&units_precip=in&units_distance=mi`,
-        { signal: AbortSignal.timeout(10_000) }
-      ),
+      fetch(`${OWM_BASE}/forecast?${params}`, {
+        signal: AbortSignal.timeout(10_000),
+      }),
+      fetch(`${OWM_BASE}/air_pollution?lat=${lat}&lon=${lon}&appid=${apiKey}`, {
+        signal: AbortSignal.timeout(10_000),
+      }),
     ])
 
-    if (!obsRes.ok) {
+    if (!currentRes.ok) {
       return NextResponse.json(
-        { error: `Tempest API error: ${obsRes.status}` },
+        { error: `OpenWeatherMap API error: ${currentRes.status}` },
         { status: 502 }
       )
     }
 
-    const obsData: TempestObservationResponse = await obsRes.json()
-    const obs = obsData.obs?.[0]
+    const current: OWMCurrentResponse = await currentRes.json()
 
-    if (!obs) {
-      return NextResponse.json(
-        { error: "No observation data available" },
-        { status: 502 }
-      )
-    }
-
-    // Build forecast if available
-    let forecast: { daily: ForecastDay[] } | null = null
+    // Aggregate 3-hour forecast into daily hi/lo
+    let forecast: ForecastDay[] = []
     if (forecastRes.ok) {
       try {
-        const forecastData: TempestForecastResponse = await forecastRes.json()
-        const days = forecastData.forecast?.daily?.slice(0, 5) ?? []
-        forecast = {
-          daily: days.map((d) => ({
-            day: new Date(d.day_start_local * 1000).toISOString().split("T")[0],
-            tempHigh: Math.round(d.air_temp_high),
-            tempLow: Math.round(d.air_temp_low),
-            precip: Math.round((d.precip ?? 0) * 100) / 100,
-            precipProbability: d.precip_probability,
-            icon: d.icon,
-            conditions: d.conditions,
-          })),
-        }
+        const forecastData: OWMForecastResponse = await forecastRes.json()
+        forecast = aggregateForecast(forecastData, current.timezone)
       } catch {
-        // Forecast is optional — continue without it
+        // Forecast is optional
       }
     }
 
+    // Air quality
+    let airQuality: WeatherResponse["airQuality"] = null
+    if (pollutionRes.ok) {
+      try {
+        const pollutionData: OWMAirPollutionResponse = await pollutionRes.json()
+        const entry = pollutionData.list?.[0]
+        if (entry) {
+          airQuality = {
+            aqi: entry.main.aqi,
+            pm2_5: Math.round(entry.components.pm2_5 * 10) / 10,
+            pm10: Math.round(entry.components.pm10 * 10) / 10,
+            o3: Math.round(entry.components.o3 * 10) / 10,
+            no2: Math.round(entry.components.no2 * 10) / 10,
+          }
+        }
+      } catch {
+        // Air quality is optional
+      }
+    }
+
+    const weather = current.weather[0]
+
     const response: WeatherResponse = {
-      station: {
-        name: obsData.station_name ?? "Tempest",
-        stationId: obsData.station_id,
+      location: {
+        name: current.name,
+        country: current.sys.country,
+        lat: current.coord.lat,
+        lon: current.coord.lon,
       },
       current: {
-        temperature: cToF(obs.air_temperature),
-        feelsLike: cToF(obs.feels_like),
-        humidity: obs.relative_humidity,
-        pressure: mbToInHg(obs.sea_level_pressure),
-        windSpeed: msToMph(obs.wind_avg),
-        windGust: msToMph(obs.wind_gust),
-        windDirection: obs.wind_direction,
-        uvIndex: obs.uv,
-        solarRadiation: obs.solar_radiation,
-        rainToday: mmToIn(obs.precip_accum_local_day),
-        lightningCount3hr: obs.lightning_strike_count_last_3hr,
-        weatherCode: deriveWeatherCode(obs),
+        temp: Math.round(current.main.temp),
+        feelsLike: Math.round(current.main.feels_like),
+        tempMin: Math.round(current.main.temp_min),
+        tempMax: Math.round(current.main.temp_max),
+        humidity: current.main.humidity,
+        pressure: current.main.pressure,
+        visibility: current.visibility,
+        windSpeed: Math.round(current.wind.speed * 10) / 10,
+        windDeg: current.wind.deg,
+        windGust: current.wind.gust
+          ? Math.round(current.wind.gust * 10) / 10
+          : undefined,
+        clouds: current.clouds.all,
+        description: weather?.description ?? "",
+        icon: weather?.icon ?? "01d",
+        conditionId: weather?.id ?? 800,
+        sunrise: current.sys.sunrise,
+        sunset: current.sys.sunset,
+        dt: current.dt,
       },
+      airQuality,
       forecast,
     }
 
     return NextResponse.json(response, {
-      headers: { "Cache-Control": "no-store" },
+      headers: { "Cache-Control": "public, max-age=600" },
     })
   } catch {
     return NextResponse.json(
-      { error: "Failed to connect to Tempest API" },
+      { error: "Failed to connect to OpenWeatherMap" },
       { status: 502 }
     )
   }
 }
 
-/** Backwards-compatible Open-Meteo handler for widgets not yet migrated */
-async function handleLegacy(
-  searchParams: URLSearchParams
-): Promise<NextResponse> {
-  const lat = Number(searchParams.get("lat"))
-  const lon = Number(searchParams.get("lon"))
-  const unit = searchParams.get("unit")
+/**
+ * Aggregate 3-hour forecast entries into daily summaries.
+ * Groups by date in the location's timezone, picks max/min temp,
+ * the most common weather condition, and the highest precipitation probability.
+ */
+function aggregateForecast(
+  data: OWMForecastResponse,
+  timezoneOffset: number
+): ForecastDay[] {
+  const dayMap = new Map<
+    string,
+    {
+      temps: number[]
+      pops: number[]
+      icons: Map<string, number>
+      conditionIds: Map<number, number>
+      descriptions: Map<string, number>
+    }
+  >()
 
-  if (Number.isNaN(lat) || Number.isNaN(lon)) {
-    return NextResponse.json(
-      { error: "lat and lon must be valid numbers" },
-      { status: 400 }
-    )
-  }
+  for (const entry of data.list) {
+    // Convert to local date string
+    const localDate = new Date((entry.dt + timezoneOffset) * 1000)
+    const dateStr = localDate.toISOString().split("T")[0]
 
-  const temperatureUnit = unit === "fahrenheit" ? "fahrenheit" : "celsius"
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,weather_code&temperature_unit=${temperatureUnit}&timezone=auto&forecast_days=5`
+    let day = dayMap.get(dateStr)
+    if (!day) {
+      day = {
+        temps: [],
+        pops: [],
+        icons: new Map(),
+        conditionIds: new Map(),
+        descriptions: new Map(),
+      }
+      dayMap.set(dateStr, day)
+    }
 
-  try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(10_000) })
-    if (!response.ok) {
-      return NextResponse.json(
-        { error: "Failed to fetch weather data" },
-        { status: 502 }
+    day.temps.push(entry.main.temp_min, entry.main.temp_max)
+    day.pops.push(entry.pop)
+
+    const w = entry.weather[0]
+    if (w) {
+      day.icons.set(w.icon, (day.icons.get(w.icon) ?? 0) + 1)
+      day.conditionIds.set(w.id, (day.conditionIds.get(w.id) ?? 0) + 1)
+      day.descriptions.set(
+        w.description,
+        (day.descriptions.get(w.description) ?? 0) + 1
       )
     }
-    const data = await response.json()
-    return NextResponse.json(data, {
-      headers: { "Cache-Control": "public, max-age=600" },
-    })
-  } catch {
-    return NextResponse.json(
-      { error: "Failed to fetch weather data" },
-      { status: 502 }
-    )
   }
+
+  // Skip today, take next 5 days
+  const today = new Date(
+    (Math.floor(Date.now() / 1000) + timezoneOffset) * 1000
+  )
+    .toISOString()
+    .split("T")[0]
+
+  const result: ForecastDay[] = []
+  for (const [dateStr, day] of dayMap) {
+    if (dateStr === today) continue
+    if (result.length >= 5) break
+
+    const mostCommon = <T>(map: Map<T, number>): T =>
+      [...map.entries()].sort((a, b) => b[1] - a[1])[0][0]
+
+    result.push({
+      date: dateStr,
+      tempHigh: Math.round(Math.max(...day.temps)),
+      tempLow: Math.round(Math.min(...day.temps)),
+      icon: mostCommon(day.icons),
+      conditionId: mostCommon(day.conditionIds),
+      description: mostCommon(day.descriptions),
+      pop: Math.round(Math.max(...day.pops) * 100),
+    })
+  }
+
+  return result
 }

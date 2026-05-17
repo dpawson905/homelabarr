@@ -17,7 +17,7 @@ export default async function BoardPage({ params }: PageProps) {
 
   if (!board) {
     const fallbackId = getDefaultBoardId()
-    if (fallbackId) {
+    if (fallbackId && fallbackId !== id) {
       redirect(`/board/${fallbackId}`)
     }
     notFound()
