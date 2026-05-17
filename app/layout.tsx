@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist_Mono, JetBrains_Mono, Fira_Code } from "next/font/google";
 import { ThemeProvider } from "next-themes";
+import { THEMES } from "@/lib/themes";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
@@ -36,7 +37,13 @@ export default function RootLayout({
       <body
         className={`${geistMono.variable} antialiased`}
       >
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dracula"
+          themes={[...THEMES.map((t) => t.id), "system"]}
+          enableSystem
+          disableTransitionOnChange
+        >
           <TooltipProvider>{children}</TooltipProvider>
           <Toaster />
         </ThemeProvider>
