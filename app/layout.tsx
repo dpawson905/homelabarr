@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist_Mono, JetBrains_Mono, Fira_Code, Antonio } from "next/font/google";
+import { Geist_Mono, JetBrains_Mono, Fira_Code, Antonio, Rajdhani } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { THEMES } from "@/lib/themes";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -30,6 +30,14 @@ const antonio = Antonio({
   display: "swap",
 });
 
+// Tron Legacy theme — geometric condensed sans, closest free analog to TR2N
+const rajdhani = Rajdhani({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-rajdhani",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "Homelabarr",
   description: "Self-hosted homelab dashboard",
@@ -41,7 +49,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${jetbrainsMono.variable} ${firaCode.variable} ${antonio.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${jetbrainsMono.variable} ${firaCode.variable} ${antonio.variable} ${rajdhani.variable}`} suppressHydrationWarning>
       <body
         className={`${geistMono.variable} antialiased`}
       >
